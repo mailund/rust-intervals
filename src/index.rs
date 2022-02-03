@@ -1,11 +1,11 @@
 /// A type-safe index. The underlying type is usize
 /// since all of Rust's indices want that.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Idx(pub usize);
 
 /// A type-safe offset. The underlying type is isize
 /// just because it matches the usize in Idx.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Offset(pub isize);
 
 // So we can print the buggers
@@ -159,3 +159,17 @@ impl std::ops::SubAssign<isize> for Offset {
         self.0 -= rhs;
     }
 }
+
+// FIXME: I doubt this will work...
+impl<T> std::ops::Index<Idx> for Vec<T> {
+    type Output = T;
+    fn index(&self, idx: Idx) -> &T {
+        let Idx(i) = idx;
+        &self[i]
+    }
+}
+/*
+impl<T> std::slice::SliceIndex<Idx> {
+
+}
+*/

@@ -23,9 +23,9 @@ fn g(ij: &Interval) {
 }
 
 fn main() {
-    let r1: Interval = i(Idx(0), Idx(0));
-    let r2: Interval = i(Idx(0), Idx(1));
-    let r3: Interval = i(Idx(0), Idx(2));
+    let r1: Interval = range(Idx(0), Idx(0));
+    let r2: Interval = range(Idx(0), Idx(1));
+    let r3: Interval = range(Idx(0), Idx(2));
     println!("{}, {}, {}", r1, r2, r3);
     println!("{}", r1.is_empty());
     println!("{}", r2.is_empty());

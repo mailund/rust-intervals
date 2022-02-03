@@ -4,7 +4,7 @@ pub struct Interval(Idx, Idx);
 
 /// Creates an interval if i <= j and return Some(-).
 /// If j < i, the interval is invalid and we return None
-pub fn safe_i(i: Idx, j: Idx) -> Option<Interval> {
+pub fn safe_range(i: Idx, j: Idx) -> Option<Interval> {
     match (i, j) {
         (i, j) if i <= j => Some(Interval(i, j)),
         _ => None,
@@ -12,8 +12,8 @@ pub fn safe_i(i: Idx, j: Idx) -> Option<Interval> {
 }
 /// Creates a valid interval or panics if [i,j) is not
 /// a valid interval.
-pub fn i(i: Idx, j: Idx) -> Interval {
-    safe_i(i, j).unwrap()
+pub fn range(i: Idx, j: Idx) -> Interval {
+    safe_range(i, j).unwrap()
 }
 
 // Just so we can print the buggers

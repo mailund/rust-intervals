@@ -1,12 +1,4 @@
-//! The log functions in this module requires that the index is at least 1
-//! since log(0) is not well-defined. This works out well, though, since we
-//! use them for j in intervals [i,j) where j > i, so j >= 1. For allocating
-//! memory for tables that address in log-space, however, it means that
-//! if you want to index k (j == 2^k+jj) you need at least k entries, so
-//! you cannot use log2_up when j is a power of two (log2_up(2^k) == k)
-//! as this will be one too little. To allocate memory, use log_table_size(j)
-//! which will be log2_down(j) + 1. When j is not a power of two, this is
-//! the same as log2_up(j), but for powers of two, it adds the extra entry.
+use super::index::*;
 
 /// Tests if x is a power of two, x=2^k.
 pub fn power_of_two(x: usize) -> bool {
@@ -409,13 +401,15 @@ where
     }
 }
 
+use super::index::*;
+
 /// A point is an index with the corresponding value
-#[derive(Debug, Clone, Copy)]
-pub struct Point(pub usize, pub u32);
+#[derive(Clone, Copy)]
+pub struct Point(pub Idx, pub u32);
 
 impl Point {
     #[inline]
-    pub fn idx(&self) -> usize {
+    pub fn idx(&self) -> Idx {
         self.0
     }
     #[inline]
@@ -423,8 +417,8 @@ impl Point {
         self.1
     }
 
-    pub fn new(i: usize, x: &[u32]) -> Point {
-        Point(i, x[i])
+    pub fn new(i: Idx, x: &[u32]) -> Point {
+        Point(i, x[i.0]) // FIXME
     }
 }
 
@@ -462,7 +456,7 @@ pub struct PowerRMQImpl {
 }
 
 impl PowerRMQImpl {
-    fn point(&self, i: usize) -> Point {
+    fn point(&self, i: Idx) -> Point {
         Point(i, self.lcp[i])
     }
     fn new(lcp: Vec<u32>) -> PowerRMQImpl {
@@ -484,9 +478,10 @@ impl PowerRMQImpl {
         for k in 1..logn {
             for i in 0..(n - Pow(k - 1).value()) {
                 // Interval [i,i+2^k) = [i,i+2^{k-1}) [i+2^{k-1},(i+2^{k-1})+2^{k-1})
-                let left = Point::new(tbl[(i, Pow(k - 1))], &lcp);
-                let right = Point::new(tbl[(i + Pow(k - 1).value(), Pow(k - 1))], &lcp);
-                tbl[(i, Pow(k))] = min(left, right).idx();
+                let left = Point::new(Idx(tbl[(i, Pow(k - 1))]), &lcp);
+                let right = Point::new(Idx(tbl[(i + Pow(k - 1).value(), Pow(k - 1))]), &lcp);
+                let Point(Idx(m), _) = min(left, right); // FIXME
+                tbl[(i, Pow(k))] = m;
             }
         }
         PowerRMQImpl { lcp, tbl }
@@ -494,34 +489,81 @@ impl PowerRMQImpl {
     fn len(&self) -> usize {
         self.lcp.len()
     }
-    // FIXME: Implement Index directly
-    fn val(&self, index: usize) -> &u32 {
-        &self.lcp[index]
-    }
     fn rmq(&self, i: usize, j: usize) -> Point {
         // Work out k so [i,2^k) and [j-2^k,j) are overlapping (and are not overlapping)
         // anything outside of [i,j). Then use the table to get the index with the smallest
         // lcp in those intervals, and pick the smaller of the two (with the first index
         // in case of a tie). All in O(1).
         let (p, ii) = adjusted_index(i, j);
-        min(self.point(self.tbl[(i, p)]), self.point(self.tbl[(ii, p)]))
+        min(
+            self.point(Idx(self.tbl[(i, p)])),
+            self.point(Idx(self.tbl[(ii, p)])),
+        )
     }
 }
+
+use super::interval::*;
 
 /// Finds the left-most index with the smallest value in x.
 /// Returns the index of the left-most minimal value and the
 /// minimal value. If [i,j) is not a valid interval, you ged
 /// None.
-pub fn smallest_in_range(x: &[u32], i: usize, j: usize) -> Option<Point> {
-    let y = &x[i..j];
-    let min_val = y.iter().min()?;
-    let pos = i + y.iter().position(|a| a == min_val)?;
-    Some(Point(pos, *min_val))
+pub fn smallest_in_range(x: &[u32], ij: Interval) -> Option<Point> {
+    use super::interval::Cases2::*;
+    match ij.cases2() {
+        Empty => None,
+        Range(Idx(i), Idx(j)) => {
+            let y = &x[i..j];
+            let min_val = y.iter().min()?;
+            let pos = i + y.iter().position(|a| a == min_val)?;
+            Some(Point(Idx(pos), *min_val))
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn check_min_in_interval(lcp: &[u32], ij: Interval) {
+        use Cases2::*;
+        if let Range(Idx(i), Idx(j)) = ij.cases2() {
+            let Point(Idx(k), _) = smallest_in_range(lcp, range(Idx(i), Idx(j))).unwrap();
+            assert!(i <= k);
+            assert!(k < j);
+
+            let v = lcp[k];
+            for l in i..k {
+                assert!(lcp[l] > v);
+            }
+            for l in k + 1..j {
+                assert!(lcp[l] >= v)
+            }
+        }
+    }
+
+    fn check_min(lcp: &[u32]) {
+        for i in 0..lcp.len() {
+            for j in i + 1..lcp.len() + 1 {
+                check_min_in_interval(lcp, range(Idx(i), Idx(j)))
+            }
+        }
+    }
+    fn check_rmq() {
+        // Not power of two
+        let v = vec![2, 1, 2, 5, 3, 6, 1, 3, 7, 4];
+        check_min(&v);
+        // Power of two
+        let v = vec![2, 1, 2, 5, 3, 6, 1, 3, 7, 4, 2, 6, 3, 4, 7, 9];
+        check_min(&v);
+        // Not power of two
+        let v = vec![2, 1, 2, 0, 2, 1, 3, 7, 4];
+        check_min(&v);
+        // Power of two
+        let v = vec![2, 1, 2, 5, 3, 6, 1, 3];
+        check_min(&v);
+    }
+
     #[test]
     fn test_rmq_power() {
         // First a few checks of the Power specific table...
@@ -535,7 +577,7 @@ mod tests {
 
         // Checking diagonal
         for i in 0..v.len() {
-            assert_eq!(i, rmqa.rmq(i, i + 1).idx());
+            assert_eq!(Idx(i), rmqa.rmq(i, i + 1).idx());
         }
 
         // Checking powers
@@ -545,7 +587,7 @@ mod tests {
                 if j > v.len() {
                     continue;
                 }
-                let i1 = smallest_in_range(&v, i, j).unwrap().idx();
+                let i1 = smallest_in_range(&v, range(Idx(i), Idx(j))).unwrap().idx();
                 let i2 = rmqa.rmq(i, j).idx();
                 println!(
                     "[{},{}): {}, {}, [offset={}] {:?}",
