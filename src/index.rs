@@ -1,8 +1,9 @@
+use super::index_macros::*;
 use super::ops_macros::*;
 use super::wrapper::*;
 
-def_wrapper!(Idx, usize);
-def_wrapper!(Offset, isize);
+def_num_wrapper!(Idx wrapping usize);
+def_num_wrapper!(Offset wrapping isize);
 
 // So we can print the buggers
 impl std::fmt::Display for Idx {
@@ -17,61 +18,34 @@ impl std::fmt::Display for Offset {
 }
 
 // You can add an index and an offset
-def_add!(Idx, Offset, Idx);
-def_add!(Offset, Idx, Idx);
-def_add_assign!(Idx, Offset);
+def_op!(Idx + Offset => Idx);
+def_op!(Offset + Idx => Idx);
+def_op!(Idx += Offset);
 
 // You can subtract an index and an offset
-def_sub!(Idx, Offset, Idx);
-def_sub!(Offset, Idx, Idx);
-def_sub_assign!(Idx, Offset);
+def_op!(Idx - Offset => Idx);
+def_op!(Idx -= Offset);
 
 // You can subtract two indices, but you can't add
 // them (adding indices do not usually make sense)
-def_sub!(Idx, Idx, Offset);
+def_op!(Idx - Idx => Offset);
 
 // You can add scalars to the two types.
-def_add!(Idx, usize, Idx);
-def_add!(usize, Idx, Idx);
-def_add_assign!(Idx, usize);
-def_add!(Offset, isize, Offset);
-def_add!(isize, Offset, Offset);
-def_add_assign!(Offset, isize);
+def_op!(Idx + usize => Idx);
+def_op!(usize + Idx => Idx);
+def_op!(Idx += usize);
+def_op!(Offset + isize => Offset);
+def_op!(isize + Offset => Offset);
+def_op!(Offset += isize);
 
 // You can subtract scalars from the two types.
-def_sub!(Idx, usize, Idx);
-def_sub!(usize, Idx, Idx);
-def_sub_assign!(Idx, usize);
-def_sub!(Offset, isize, Offset);
-def_sub!(isize, Offset, Offset);
-def_sub_assign!(Offset, isize);
+def_op!(Idx - usize => Idx);
+def_op!(usize - Idx => Idx);
+def_op!(Idx -= usize);
+def_op!(Offset - isize => Offset);
+def_op!(isize - Offset => Offset);
+def_op!(Offset -= isize);
 
-macro_rules! def_index {
-    ($t:ty) => {
-        impl<T> std::ops::Index<$t> for Vec<T> {
-            type Output = T;
-            fn index(self: &Vec<T>, i: $t) -> &T {
-                &self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::IndexMut<$t> for Vec<T> {
-            fn index_mut(&mut self, i: $t) -> &mut Self::Output {
-                &mut self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::Index<$t> for [T] {
-            type Output = T;
-            fn index<'a>(self: &'a [T], i: $t) -> &'a T {
-                &self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::IndexMut<$t> for [T] {
-            fn index_mut<'a>(&'a mut self, i: $t) -> &'a mut Self::Output {
-                &mut self[i.wrapped()]
-            }
-        }
-    };
-}
 def_index!(Idx);
 
 #[cfg(test)]
@@ -88,7 +62,7 @@ mod tests {
         assert_eq!(i + 6, k);
 
         let l = Offset(6);
-        assert_eq!(i - k, l);
+        assert_eq!(j - k, l);
         assert_eq!(i + l, k);
         assert_eq!(j - l, k);
 

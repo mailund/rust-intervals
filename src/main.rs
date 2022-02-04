@@ -1,5 +1,6 @@
 #![feature(step_trait)]
 mod index;
+mod index_macros;
 mod ops_macros;
 mod range;
 mod rmq;

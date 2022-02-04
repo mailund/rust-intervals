@@ -1,4 +1,6 @@
 use super::index::*;
+use super::index_macros::*;
+use super::wrapper::*;
 use std::ops;
 
 // Trait for implementing iteration through i..j ranges for Idx.
@@ -36,21 +38,18 @@ mod tests {
 
 // Ranges are not quite good enough for our purposes. We want
 // immutable ranges that we can manipulate as data objecs.
-/// Wrapper type for better ranges.
-// FIXME: Figure out how to get Copy for a fucking ops::Range!!!
-#[derive(Clone, Debug)]
-pub struct Range(ops::Range<Idx>);
+def_obj_wrapper!(Range wrapping ops::Range<Idx>);
 
-// Deref gives us access to the inner workings of T without
-// going through the zero'th index in the wrapper.
-impl ops::Deref for Range {
-    type Target = ops::Range<Idx>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+// Implement Wrapper for usize ranges so we can use those for slices
+use super::wrapper::Wrapper;
+impl Wrapper<std::ops::Range<usize>> for Range {
+    fn wrapped(&self) -> std::ops::Range<usize> {
+        self.start.0..self.end.0
     }
 }
-// We don't want the mutable interface (DerefMut) since
-// this type of Range should be immutable.
+
+// Indexing with our new Range type
+def_index!(Range[]);
 
 // Constructors. Since the embedded range is private, these
 // are the only ways to create a Range, and they ensures that
@@ -88,7 +87,7 @@ impl std::iter::Iterator for RangeForwardIterator {
         if self.cur >= self.end {
             None
         } else {
-            // FIXME: not worrying about overflow right now...
+            // Not worrying about overflow right now...
             self.cur += self.step;
             Some(self.cur - self.step)
         }
@@ -102,52 +101,6 @@ impl Range {
             step: Offset(1),
             end: self.end,
         }
-    }
-}
-
-// Indexing with our new Range type
-impl<T> ops::Index<Range> for Vec<T> {
-    type Output = [T];
-    fn index(self: &Vec<T>, r: Range) -> &Self::Output {
-        &self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::IndexMut<Range> for Vec<T> {
-    fn index_mut(self: &mut Vec<T>, r: Range) -> &mut Self::Output {
-        &mut self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::Index<&Range> for Vec<T> {
-    type Output = [T];
-    fn index(self: &Vec<T>, r: &Range) -> &Self::Output {
-        &self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::IndexMut<&Range> for Vec<T> {
-    fn index_mut(self: &mut Vec<T>, r: &Range) -> &mut Self::Output {
-        &mut self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::Index<Range> for [T] {
-    type Output = [T];
-    fn index<'a>(self: &'a [T], r: Range) -> &'a Self::Output {
-        &self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::IndexMut<Range> for [T] {
-    fn index_mut<'a>(self: &'a mut [T], r: Range) -> &'a mut Self::Output {
-        &mut self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::Index<&Range> for [T] {
-    type Output = [T];
-    fn index<'a>(self: &'a [T], r: &Range) -> &'a Self::Output {
-        &self[r.start.0..r.end.0]
-    }
-}
-impl<T> ops::IndexMut<&Range> for [T] {
-    fn index_mut<'a>(self: &'a mut [T], r: &Range) -> &'a mut Self::Output {
-        &mut self[r.start.0..r.end.0]
     }
 }
 
