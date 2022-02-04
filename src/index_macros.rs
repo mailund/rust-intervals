@@ -1,59 +1,29 @@
 macro_rules! def_index {
-    // a type alone is indexing to scalars
-    ($t:ty) => {
-        def_index!(__ $t => T);
-    };
-    // a type followed by [] is indexing slices
-    ($t:ty[]) => {
-        def_index!(__ $t => [T]);
-    };
-
-    // This is the main branch; we only need the others
-    // to dispatch to the right one
-    (__ $t:ty => $outtype:ty) => {
-        impl<T> std::ops::Index<$t> for Vec<T> {
-            type Output = $outtype;
-            fn index(self: &Vec<T>, i: $t) -> &Self::Output {
-                &self[i.wrapped()]
+    // E.g. def_idx!(Vec<T>[Idx] => T)
+    //               ^^^^^^ -- sequence type
+    //                      ^^^ -- index type
+    //                              ^ -- return type
+    ($seq:ty[$idx:ty] => $res:ty) => {
+        impl<T> std::ops::Index<$idx> for $seq {
+            type Output = $res;
+            fn index(&self, i: $idx) -> &Self::Output {
+                &self[i.as_index()]
             }
         }
-        impl<T> std::ops::IndexMut<$t> for Vec<T> {
-            fn index_mut(&mut self, i: $t) -> &mut Self::Output {
-                &mut self[i.wrapped()]
+        impl<T> std::ops::Index<&$idx> for $seq {
+            type Output = $res;
+            fn index(&self, i: &$idx) -> &Self::Output {
+                &self[i.as_index()]
             }
         }
-        impl<T> std::ops::Index<$t> for [T] {
-            type Output = $outtype;
-            fn index<'a>(self: &'a [T], i: $t) -> &'a Self::Output {
-                &self[i.wrapped()]
+        impl<T> std::ops::IndexMut<$idx> for $seq {
+            fn index_mut(&mut self, i: $idx) -> &mut Self::Output {
+                &mut self[i.as_index()]
             }
         }
-        impl<T> std::ops::IndexMut<$t> for [T] {
-            fn index_mut<'a>(&'a mut self, i: $t) -> &'a mut Self::Output {
-                &mut self[i.wrapped()]
-            }
-        }
-
-        impl<T> std::ops::Index<&$t> for Vec<T> {
-            type Output = $outtype;
-            fn index(self: &Vec<T>, i: &$t) -> &Self::Output {
-                &self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::IndexMut<&$t> for Vec<T> {
-            fn index_mut(&mut self, i: &$t) -> &mut Self::Output {
-                &mut self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::Index<&$t> for [T] {
-            type Output = $outtype;
-            fn index<'a>(self: &'a [T], i: &$t) -> &'a Self::Output {
-                &self[i.wrapped()]
-            }
-        }
-        impl<T> std::ops::IndexMut<&$t> for [T] {
-            fn index_mut<'a>(&'a mut self, i: &$t) -> &'a mut Self::Output {
-                &mut self[i.wrapped()]
+        impl<T> std::ops::IndexMut<&$idx> for $seq {
+            fn index_mut(&mut self, i: &$idx) -> &mut Self::Output {
+                &mut self[i.as_index()]
             }
         }
     };

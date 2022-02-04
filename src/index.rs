@@ -46,7 +46,9 @@ def_op!(Offset - isize => Offset);
 def_op!(isize - Offset => Offset);
 def_op!(Offset -= isize);
 
-def_index!(Idx);
+// Indexing with Idx
+def_index!(Vec<T>[Idx] => T);
+def_index!([T][Idx] => T);
 
 #[cfg(test)]
 mod tests {

@@ -40,16 +40,17 @@ mod tests {
 // immutable ranges that we can manipulate as data objecs.
 def_obj_wrapper!(Range wrapping ops::Range<Idx>);
 
-// Implement Wrapper for usize ranges so we can use those for slices
-use super::wrapper::Wrapper;
-impl Wrapper<std::ops::Range<usize>> for Range {
-    fn wrapped(&self) -> std::ops::Range<usize> {
+// Implement AsIndex for usize ranges so we can use those for slices
+use super::wrapper::AsIndex;
+impl AsIndex<std::ops::Range<usize>> for Range {
+    fn as_index(&self) -> std::ops::Range<usize> {
         self.start.0..self.end.0
     }
 }
 
 // Indexing with our new Range type
-def_index!(Range[]);
+def_index!(Vec<T>[Range] => [T]);
+def_index!([T][Range] => [T]);
 
 // Constructors. Since the embedded range is private, these
 // are the only ways to create a Range, and they ensures that

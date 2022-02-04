@@ -13,14 +13,20 @@ where
 }
 
 // Wrap basic numeric types...
-impl<T: num::NumCast + Copy> Wrapper<T> for T {
+impl<T> Wrapper<T> for T
+where
+    T: num::NumCast + Copy,
+{
     fn wrapped(&self) -> T {
         *self
     }
 }
 impl<T: num::NumCast + Copy> NumWrapper<T> for T {}
 
-// FIXME: figure out how to add documentation to generated wrappers
+pub trait AsIndex<Index> {
+    fn as_index(&self) -> Index;
+}
+
 macro_rules! def_num_wrapper {
     ($name:ident wrapping $w:ty) => {
         // Define the new type...
@@ -49,6 +55,13 @@ macro_rules! def_num_wrapper {
 
         // For wrapped numbers, we also have this guy
         impl NumWrapper<$w> for $name {}
+
+        // We need this one if we define index operators for this time
+        impl AsIndex<$w> for $name {
+            fn as_index(&self) -> $w {
+                self.0
+            }
+        }
     };
 }
 
