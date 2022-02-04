@@ -1,7 +1,9 @@
 #![feature(step_trait)]
 mod index;
+mod ops_macros;
 mod range;
 mod rmq;
+mod wrapper;
 
 use index::*;
 use range::*;
