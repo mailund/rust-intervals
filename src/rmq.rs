@@ -1,4 +1,4 @@
-use super::index::*;
+use super::*;
 
 /// Tests if x is a power of two, x=2^k.
 pub fn power_of_two(x: usize) -> bool {
@@ -502,33 +502,28 @@ impl PowerRMQImpl {
     }
 }
 
-use super::interval::*;
-
 /// Finds the left-most index with the smallest value in x.
 /// Returns the index of the left-most minimal value and the
-/// minimal value. If [i,j) is not a valid interval, you ged
-/// None.
-pub fn smallest_in_range(x: &[u32], ij: Interval) -> Option<Point> {
-    use super::interval::Cases2::*;
-    match ij.cases2() {
-        Empty => None,
-        Range(Idx(i), Idx(j)) => {
-            let y = &x[i..j];
-            let min_val = y.iter().min()?;
-            let pos = i + y.iter().position(|a| a == min_val)?;
-            Some(Point(Idx(pos), *min_val))
-        }
-    }
+/// minimal value. If [i,j) is empty, you get None.
+pub fn smallest_in_range(x: &[u32], r: &Range) -> Option<Point> {
+    // We don't need to uses cases here, if we know we have a valid
+    // range, because min() and position() returns None if the interval
+    // is empty.
+    let y = &x[r];
+    let min_val = y.iter().min()?;
+    let pos = r.start + y.iter().position(|a| a == min_val)?;
+    Some(Point(pos, *min_val))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn check_min_in_interval(lcp: &[u32], ij: Interval) {
+    fn check_min_in_interval(lcp: &[u32], r: &Range) {
         use Cases2::*;
-        if let Range(Idx(i), Idx(j)) = ij.cases2() {
-            let Point(Idx(k), _) = smallest_in_range(lcp, range(Idx(i), Idx(j))).unwrap();
+        // We only care about non-empty intervals here
+        if let R(i, j) = r.cases2() {
+            let Point(k, _) = smallest_in_range(lcp, r).unwrap();
             assert!(i <= k);
             assert!(k < j);
 
@@ -543,9 +538,9 @@ mod tests {
     }
 
     fn check_min(lcp: &[u32]) {
-        for i in 0..lcp.len() {
-            for j in i + 1..lcp.len() + 1 {
-                check_min_in_interval(lcp, range(Idx(i), Idx(j)))
+        for i in Idx(0)..Idx(lcp.len()) {
+            for j in i + 1..Idx(lcp.len() + 1) {
+                check_min_in_interval(lcp, &range(i, j))
             }
         }
     }
@@ -587,7 +582,7 @@ mod tests {
                 if j > v.len() {
                     continue;
                 }
-                let i1 = smallest_in_range(&v, range(Idx(i), Idx(j))).unwrap().idx();
+                let i1 = smallest_in_range(&v, &range(Idx(i), Idx(j))).unwrap().idx();
                 let i2 = rmqa.rmq(i, j).idx();
                 println!(
                     "[{},{}): {}, {}, [offset={}] {:?}",
