@@ -3,29 +3,31 @@ macro_rules! def_index {
     //               ^^^^^^ -- sequence type
     //                      ^^^ -- index type
     //                              ^ -- return type
-    ($seq:ty[$idx:ty] => $res:ty) => {
-        impl<T> std::ops::Index<$idx> for $seq {
-            type Output = $res;
-            fn index(&self, i: $idx) -> &Self::Output {
-                &self[i.as_index()]
+    ( $($seq:ty[$idx:ty] => $res:ty),* ) => {
+        $(
+            impl<T> std::ops::Index<$idx> for $seq {
+                type Output = $res;
+                fn index(&self, i: $idx) -> &Self::Output {
+                    &self[i.as_index()]
+                }
             }
-        }
-        impl<T> std::ops::Index<&$idx> for $seq {
-            type Output = $res;
-            fn index(&self, i: &$idx) -> &Self::Output {
-                &self[i.as_index()]
+            impl<T> std::ops::Index<&$idx> for $seq {
+                type Output = $res;
+                fn index(&self, i: &$idx) -> &Self::Output {
+                    &self[i.as_index()]
+                }
             }
-        }
-        impl<T> std::ops::IndexMut<$idx> for $seq {
-            fn index_mut(&mut self, i: $idx) -> &mut Self::Output {
-                &mut self[i.as_index()]
+            impl<T> std::ops::IndexMut<$idx> for $seq {
+                fn index_mut(&mut self, i: $idx) -> &mut Self::Output {
+                    &mut self[i.as_index()]
+                }
             }
-        }
-        impl<T> std::ops::IndexMut<&$idx> for $seq {
-            fn index_mut(&mut self, i: &$idx) -> &mut Self::Output {
-                &mut self[i.as_index()]
+            impl<T> std::ops::IndexMut<&$idx> for $seq {
+                fn index_mut(&mut self, i: &$idx) -> &mut Self::Output {
+                    &mut self[i.as_index()]
+                }
             }
-        }
+        )*
     };
 }
 

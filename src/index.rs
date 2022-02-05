@@ -2,53 +2,63 @@ use super::index_macros::*;
 use super::ops_macros::*;
 use super::wrapper::*;
 
-def_num_wrapper!(Idx wrapping usize);
-def_num_wrapper!(Offset wrapping isize);
+macro_rules! def_offset {
+    ($offset:ident) => {
+        // Offsets wrap isize
+        def_num_wrapper!($offset wrapping isize);
 
-// So we can print the buggers
-impl std::fmt::Display for Idx {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "[{}]", self.0)
-    }
+        // Arithmetic operations
+        def_offset_ops!($offset);
+
+        // So we can print the buggers
+        impl std::fmt::Display for Offset {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "±[{}]", self.0)
+            }
+        }
+    };
 }
-impl std::fmt::Display for Offset {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "±[{}]", self.0)
-    }
+
+macro_rules! def_idx {
+    ($idx:ident
+        with offset $offset:ident
+        with sub [$($seq:ty[$meta:ty] => $res:ty),*]) => {
+        // Indices wrap usize
+        def_num_wrapper!($idx wrapping usize);
+
+        // Arithmetic operations
+        def_idx_ops!($idx with offset $offset);
+
+        // Indexing
+        $(def_index!($seq[$meta] => $res);)*
+
+        // So we can print the buggers
+        impl std::fmt::Display for $idx {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "[{}]", self.0)
+            }
+        }
+    };
 }
 
-// You can add an index and an offset
-def_op!(Idx + Offset => Idx);
-def_op!(Offset + Idx => Idx);
-def_op!(Idx += Offset);
+pub(crate) use def_idx;
+pub(crate) use def_offset;
 
-// You can subtract an index and an offset
-def_op!(Idx - Offset => Idx);
-def_op!(Idx -= Offset);
+// Get a generic offset we can use for all purposes
+// If you don't want it, don't import it
+def_offset!(Offset);
 
-// You can subtract two indices, but you can't add
-// them (adding indices do not usually make sense)
-def_op!(Idx - Idx => Offset);
-
-// You can add scalars to the two types.
-def_op!(Idx + usize => Idx);
-def_op!(usize + Idx => Idx);
-def_op!(Idx += usize);
-def_op!(Offset + isize => Offset);
-def_op!(isize + Offset => Offset);
-def_op!(Offset += isize);
-
-// You can subtract scalars from the two types.
-def_op!(Idx - usize => Idx);
-def_op!(usize - Idx => Idx);
-def_op!(Idx -= usize);
-def_op!(Offset - isize => Offset);
-def_op!(isize - Offset => Offset);
-def_op!(Offset -= isize);
-
-// Indexing with Idx
-def_index!(Vec<T>[Idx] => T);
-def_index!([T][Idx] => T);
+// Get a generic index we can use for all purposes.
+// It will operate with Offset
+// If you don't want it, don't import it
+def_idx!(
+    Idx
+    with offset Offset
+    with sub [
+        Vec<T>[Idx] => T,
+        [T][Idx] => T
+    ]
+);
 
 #[cfg(test)]
 mod tests {
