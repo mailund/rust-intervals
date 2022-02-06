@@ -3,7 +3,8 @@ pub trait Wrapper<Wrapped> {
     fn wrapped(&self) -> Wrapped;
 }
 
-pub trait NumWrapper<Wrapped>: Wrapper<Wrapped>
+pub trait NumWrapper<Wrapped>:
+    Wrapper<Wrapped> + std::cmp::PartialEq + std::cmp::PartialOrd
 where
     Wrapped: num::traits::NumCast,
 {
@@ -21,7 +22,8 @@ where
         *self
     }
 }
-impl<T: num::NumCast + Copy> NumWrapper<T> for T {}
+impl<T> NumWrapper<T> for T where T: num::NumCast + Copy + std::cmp::PartialEq + std::cmp::PartialOrd
+{}
 
 pub trait AsIndex<Index> {
     fn as_index(&self) -> Index;

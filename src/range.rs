@@ -7,19 +7,18 @@ use std::ops;
 // NB: This requires nightly; the iter::Step trait is unstable.
 impl std::iter::Step for Idx {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        match (start, end) {
-            (Idx(i), Idx(j)) if i > j => None,
-            (Idx(i), Idx(j)) => Some(j - i),
+        match (start.0, end.0) {
+            (i, j) if i > j => None,
+            (i, j) => Some(j - i),
         }
     }
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
         Some(start + count) // Ignoring overflow here...
     }
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        if start < Idx(count) {
-            None
-        } else {
-            Some(start - count)
+        match start.0 {
+            i if i < count => None,
+            _ => Some(start - count),
         }
     }
 }
@@ -35,7 +34,6 @@ mod tests {
         }
     }
 }
-
 // Ranges are not quite good enough for our purposes. We want
 // immutable ranges that we can manipulate as data objecs.
 def_obj_wrapper!(Range wrapping ops::Range<Idx>);
@@ -49,8 +47,10 @@ impl AsIndex<std::ops::Range<usize>> for Range {
 }
 
 // Indexing with our new Range type
-def_index!(Vec<T>[Range] => [T]);
-def_index!([T][Range] => [T]);
+def_index!(
+    Vec<T>[Range] => [T],
+    [T][Range] => [T]
+);
 
 // Constructors. Since the embedded range is private, these
 // are the only ways to create a Range, and they ensures that

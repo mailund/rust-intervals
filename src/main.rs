@@ -6,6 +6,8 @@ mod range;
 mod rmq;
 mod wrapper;
 
+mod experiments;
+
 use index::*;
 use range::*;
 
