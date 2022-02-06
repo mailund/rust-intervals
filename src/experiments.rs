@@ -171,5 +171,4 @@ fn test_wrapper() {
     for k in O::from(-10)..O::from(10) {
         println!("k = {}", k);
     }
-    assert!(false);
 }
