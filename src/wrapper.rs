@@ -15,6 +15,24 @@ pub trait WrapInfo: TypeInfo {
     }
 }
 
+/// Convinience function for getting the underlying integer from a
+/// wrapper. This is slightly easier to use in macros.
+pub fn wrapped<T: num::PrimInt>(wrapper: &impl WrapInfo) -> T {
+    wrapper.wrapped_as()
+}
+
+/// Hack to get the type of a TypeInfo implementation. You can get it
+/// as Type<T>::Type where T: TypeInfo.
+pub trait TypeTrait {
+    type Type;
+}
+pub struct Type<T: TypeInfo> {
+    marker: std::marker::PhantomData<T>,
+}
+impl<T: TypeInfo> TypeTrait for Type<T> {
+    type Type = <T as TypeInfo>::WrappedType;
+}
+
 /// Trait for types that can be used for indexing
 pub trait IndexInfo: Copy {
     type IndexType: Copy + num::PrimInt;

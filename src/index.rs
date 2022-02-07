@@ -1,9 +1,9 @@
 macro_rules! def_offset {
     ($offset:ident) => {
         // Offsets wrap isize
-        def_wrapped!($offset[isize]);
+        $crate::wrapper::def_wrapped!($offset[isize]);
         // Arithmetic operations
-        def_offset_ops!($offset);
+        $crate::ops_macros::def_offset_ops!($offset);
     };
 }
 
@@ -12,11 +12,11 @@ macro_rules! def_idx {
         with offset $offset:ident
         with sub [$($seq:ty[$meta:ty] => $res:ty),*]) => {
         // Indices wrap usize
-        def_wrapped!($idx[usize] as index);
+        $crate::wrapper::def_wrapped!($idx[usize] as index);
         // Arithmetic operations
-        def_idx_ops!($idx with offset $offset);
+        $crate::ops_macros::def_idx_ops!($idx with offset $offset);
         // Indexing
-        $(def_index!($seq[$meta] => $res);)*
+        $($crate::index_macros::def_index!($seq[$meta] => $res);)*
     };
 }
 
@@ -26,7 +26,6 @@ pub(crate) use def_offset;
 #[cfg(test)]
 mod index_tests {
     use crate::*;
-
     // Get a generic offset we can use for all purposes
     // If you don't want it, don't import it
     def_offset!(Offset);
