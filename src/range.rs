@@ -4,7 +4,7 @@ use crate::*;
 // NB: This requires nightly; the iter::Step trait is unstable.
 impl<_Tag> std::iter::Step for Wrapper<_Tag>
 where
-    _Tag: TypeInfo,
+    _Tag: TypeInfo + Clone,
 {
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
         match (start.wrapped(), end.wrapped()) {
@@ -49,6 +49,147 @@ mod range_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod experiments {
+    use crate::*;
+    def_offset!(Offset);
+    def_idx!(Idx with offset Offset
+             with sub [Vec<T>[Idx] => T, [T][Idx] => T]
+    );
+}
+
+/// Wrapper of Range that we can work with within Rust's type system
+#[derive(Clone, Copy)]
+pub enum Range<Idx> {
+    Closed(Idx, Idx), // start..end
+    Left(Idx),        // start..
+    Right(Idx),       // ..end
+    Full,             // ..
+}
+
+impl<Idx> std::fmt::Display for Range<Idx>
+where
+    Idx: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Range::Closed(start, end) => write!(f, "{}..{}", start, end),
+            Range::Left(start) => write!(f, "{}..", start),
+            Range::Right(end) => write!(f, "..{}", end),
+            Range::Full => write!(f, ".."),
+        }
+    }
+}
+
+pub trait GenRange<R, Idx> {
+    fn range(r: R) -> Range<Idx>;
+}
+impl<Idx> GenRange<std::ops::Range<Idx>, Idx> for std::ops::Range<Idx> {
+    fn range(r: std::ops::Range<Idx>) -> Range<Idx> {
+        Range::Closed(r.start, r.end)
+    }
+}
+impl<Idx> GenRange<std::ops::RangeFrom<Idx>, Idx> for std::ops::RangeFrom<Idx> {
+    fn range(r: std::ops::RangeFrom<Idx>) -> Range<Idx> {
+        Range::Left(r.start)
+    }
+}
+impl<Idx> GenRange<std::ops::RangeTo<Idx>, Idx> for std::ops::RangeTo<Idx> {
+    fn range(r: std::ops::RangeTo<Idx>) -> Range<Idx> {
+        Range::Right(r.end)
+    }
+}
+impl<Idx> GenRange<std::ops::RangeFull, Idx> for std::ops::RangeFull {
+    fn range(_r: std::ops::RangeFull) -> Range<Idx> {
+        Range::Full
+    }
+}
+
+pub fn range<Idx, R: GenRange<R, Idx>>(r: R) -> Range<Idx> {
+    R::range(r)
+}
+
+#[cfg(test)]
+mod range_experiments {
+    use super::*;
+    use crate::*;
+    def_idx!(Idx with offset isize with sub []);
+
+    #[test]
+    fn range_constructor() {
+        let (i, j): (Idx, Idx) = (Idx::from(0), Idx::from(10));
+        match range(i..j) {
+            Range::Closed(left, right) => {
+                assert_eq!(i, left);
+                assert_eq!(j, right);
+            }
+            _ => {
+                assert!(false);
+            }
+        };
+        match range(i..) {
+            Range::Left(left) => {
+                assert_eq!(i, left);
+            }
+            _ => {
+                assert!(false);
+            }
+        };
+        match range(..j) {
+            Range::Right(right) => {
+                assert_eq!(j, right);
+            }
+            _ => {
+                assert!(false);
+            }
+        };
+        match range(..) {
+            Range::<Idx>::Full => {}
+            _ => {
+                assert!(false);
+            }
+        };
+        println!(
+            "{} {}, {}, {}",
+            range(i..j),
+            range(i..),
+            range(..j),
+            range(..) as Range<Idx>
+        );
+        // for printing assert!(false);
+    }
+}
+
+/*
+impl<_Tag, T> std::ops::Index<std::ops::Range<Wrapper<_Tag>>> for Vec<T> {
+    type Output = [T];
+    fn index(&self, i: std::ops::Range<Wrapper<_Tag>>) -> &Self::Output {
+        &self[0..4]
+    }
+}
+*/
+
+/*
+// See if we can get Range<T> objects to index when <T> can index
+/// Any of the wrapped types should have this.
+
+impl<T> crate::wrapper::TypeInfo for std::ops::Range<T>
+where
+    T: crate::wrapper::TypeInfo,
+{
+    type WrappedType = std::ops::Range<T::WrappedType>;
+}
+impl<T> CanIndex for std::ops::Range<T> where T: crate::wrapper::TypeInfo {}
+impl<T> IndexInfo for std::ops::Range<T>
+where
+    T: crate::wrapper::IndexInfo,
+{
+    type IndexType = std::ops::Range<T::IndexType>;
+    fn as_index(&self) -> Self::IndexType {
+        self.start.as_index()..self.end.as_index()
+    }
+}*/
 
 /*
 

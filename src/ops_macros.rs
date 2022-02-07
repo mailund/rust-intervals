@@ -5,6 +5,7 @@ macro_rules! def_op {
     ($lhs:ident + $rhs:ident => $res:ident) => {
         impl std::ops::Add<$rhs> for $lhs {
             type Output = $res;
+            #[inline]
             fn add(self, rhs: $rhs) -> Self::Output {
                 let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
                     $crate::wrapper::wrapped(&self);
@@ -17,6 +18,7 @@ macro_rules! def_op {
 
     ($lhs:ident += $rhs:ident) => {
         impl std::ops::AddAssign<$rhs> for $lhs {
+            #[inline]
             fn add_assign(&mut self, rhs: $rhs) {
                 let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
                     $crate::wrapper::wrapped(&rhs);
@@ -28,6 +30,7 @@ macro_rules! def_op {
     ($lhs:ident - $rhs:ident => $res:ident) => {
         impl std::ops::Sub<$rhs> for $lhs {
             type Output = $res;
+            #[inline]
             fn sub(self, rhs: $rhs) -> Self::Output {
                 let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
                     $crate::wrapper::wrapped(&self);
@@ -40,6 +43,7 @@ macro_rules! def_op {
 
     ($lhs:ident -= $rhs:ident) => {
         impl std::ops::SubAssign<$rhs> for $lhs {
+            #[inline]
             fn sub_assign(&mut self, rhs: $rhs) {
                 let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
                     $crate::wrapper::wrapped(&rhs);
@@ -95,7 +99,6 @@ pub(crate) use def_op;
 
 #[cfg(test)]
 mod ops_macros_test {
-
     crate::index::def_offset!(Offset);
     crate::index::def_idx!(
         Idx with offset Offset

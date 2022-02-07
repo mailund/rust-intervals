@@ -9,22 +9,26 @@ macro_rules! def_index {
         $(
             impl<T> std::ops::Index<$idx> for $seq {
                 type Output = $res;
+                #[inline]
                 fn index(&self, i: $idx) -> &Self::Output {
                     &self[i.as_index()]
                 }
             }
             impl<T> std::ops::Index<&$idx> for $seq {
                 type Output = $res;
+                #[inline]
                 fn index(&self, i: &$idx) -> &Self::Output {
                     &self[i.as_index()]
                 }
             }
             impl<T> std::ops::IndexMut<$idx> for $seq {
+                #[inline]
                 fn index_mut(&mut self, i: $idx) -> &mut Self::Output {
                     &mut self[i.as_index()]
                 }
             }
             impl<T> std::ops::IndexMut<&$idx> for $seq {
+                #[inline]
                 fn index_mut(&mut self, i: &$idx) -> &mut Self::Output {
                     &mut self[i.as_index()]
                 }
