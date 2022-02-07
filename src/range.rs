@@ -1,39 +1,57 @@
-use super::index::*;
-use super::index_macros::*;
-use super::wrapper::*;
-use std::ops;
+use crate::*;
 
 // Trait for implementing iteration through i..j ranges for Idx.
 // NB: This requires nightly; the iter::Step trait is unstable.
-impl std::iter::Step for Idx {
+impl<_Tag> std::iter::Step for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+{
     fn steps_between(start: &Self, end: &Self) -> Option<usize> {
-        match (start.0, end.0) {
+        match (start.wrapped(), end.wrapped()) {
             (i, j) if i > j => None,
-            (i, j) => Some(j - i),
+            (i, j) => num::cast(j - i),
         }
     }
     fn forward_checked(start: Self, count: usize) -> Option<Self> {
-        Some(start + count) // Ignoring overflow here...
+        let count = num::cast::<usize, _Tag::WrappedType>(count)?;
+        Some(Wrapper::<_Tag>(start.wrapped() + count))
     }
     fn backward_checked(start: Self, count: usize) -> Option<Self> {
-        match start.0 {
-            i if i < count => None,
-            _ => Some(start - count),
-        }
+        let count = num::cast::<usize, _Tag::WrappedType>(count)?;
+        Some(Wrapper::<_Tag>(start.wrapped() - count))
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod range_tests {
+    use crate::*;
+
+    // Get a generic offset we can use for all purposes
+    // If you don't want it, don't import it
+    def_offset!(Offset);
+
+    // Get a generic index we can use for all purposes.
+    // It will operate with Offset
+    // If you don't want it, don't import it
+    def_idx!(
+        Idx
+        with offset Offset
+        with sub [
+            Vec<T>[Idx] => T,
+            [T][Idx] => T
+        ]
+    );
 
     #[test]
     fn test_ranges() {
-        for Idx(i) in Idx(0)..Idx(5) {
+        for i in Idx::from(0)..Idx::from(5) {
             println!("{}", i);
         }
     }
 }
+
+/*
+
 // Ranges are not quite good enough for our purposes. We want
 // immutable ranges that we can manipulate as data objecs.
 def_obj_wrapper!(Range wrapping ops::Range<Idx>);
@@ -148,3 +166,4 @@ impl Range {
         }
     }
 }
+*/

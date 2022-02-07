@@ -1,4 +1,4 @@
-use super::*;
+/*
 
 /// Tests if x is a power of two, x=2^k.
 pub fn power_of_two(x: usize) -> bool {
@@ -598,3 +598,4 @@ mod tests {
         }
     }
 }
+*/

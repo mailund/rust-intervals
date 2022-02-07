@@ -1,3 +1,5 @@
+use super::*;
+
 macro_rules! def_index {
     // E.g. def_idx!(Vec<T>[Idx] => T)
     //               ^^^^^^ -- sequence type

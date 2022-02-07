@@ -1,97 +1,141 @@
-// Hack to work with wrapped types in macros...
-pub trait Wrapper<Wrapped> {
-    fn wrapped(&self) -> Wrapped;
+/// Any of the wrapped types should have this.
+pub trait TypeInfo: Copy {
+    type WrappedType: Copy + num::PrimInt;
 }
+/// This is just a tag that says that this wrapped type
+/// can be used to index.
+pub trait CanIndex: TypeInfo {}
 
-pub trait NumWrapper<Wrapped>:
-    Wrapper<Wrapped> + std::cmp::PartialEq + std::cmp::PartialOrd
-where
-    Wrapped: num::traits::NumCast,
-{
-    fn cast_to_wrapped<T: num::traits::NumCast>(val: T) -> Wrapped {
-        num::cast(val).unwrap()
+/// A few places, this is useful for meta-programming. Mostly because I can't
+/// get the From<> trait to work half the time...
+pub trait WrapInfo: TypeInfo {
+    fn wrapped(&self) -> Self::WrappedType;
+    fn wrapped_as<T: num::PrimInt + Copy>(&self) -> T {
+        num::cast::<Self::WrappedType, T>(self.wrapped()).unwrap()
     }
 }
 
-// Wrap basic numeric types...
-impl<T> Wrapper<T> for T
+/// Trait for types that can be used for indexing
+pub trait IndexInfo: Copy {
+    type IndexType: Copy + num::PrimInt;
+    fn as_index(&self) -> Self::IndexType;
+}
+
+// Type info for primitive types; we will wrap those for specific
+// type-safe types. Having the traits for all numbers makes meta-programming
+// a lot easier. Numerical types just wrap themselves.
+impl<T> TypeInfo for T
 where
-    T: num::NumCast + Copy,
+    T: Copy + num::PrimInt,
 {
-    fn wrapped(&self) -> T {
+    type WrappedType = T;
+}
+impl<T> WrapInfo for T
+where
+    T: Copy + num::PrimInt,
+{
+    fn wrapped(&self) -> Self::WrappedType {
         *self
     }
 }
-impl<T> NumWrapper<T> for T where T: num::NumCast + Copy + std::cmp::PartialEq + std::cmp::PartialOrd
-{}
-
-pub trait AsIndex<Index> {
-    fn as_index(&self) -> Index;
+impl<T> IndexInfo for T
+where
+    T: Copy + num::PrimInt,
+{
+    type IndexType = T;
+    fn as_index(&self) -> Self::IndexType {
+        *self
+    }
 }
 
-macro_rules! def_num_wrapper {
-    ($name:ident wrapping $w:ty) => {
-        // Define the new type...
-        /// A type-safe integer type for use with indices and offsets.
-        #[derive(Copy, Clone, Debug)]
-        pub struct $name(pub $w);
+#[derive(Debug, Clone, Copy)]
+pub struct Wrapper<_Tag>(pub _Tag::WrappedType)
+where
+    _Tag: TypeInfo;
 
-        // Get an ordering on it
-        impl std::cmp::PartialEq for $name {
-            fn eq(&self, other: &$name) -> bool {
-                self.0 == other.0
+impl<_Tag> TypeInfo for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+{
+    type WrappedType = _Tag::WrappedType;
+}
+impl<_Tag> WrapInfo for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+{
+    fn wrapped(&self) -> _Tag::WrappedType {
+        self.0
+    }
+}
+// When using a wrapped object for indexing, we have a general solution
+// as long as the wrapped type is something we can index. We can still specialise
+// a wrapper for an indexing type if we wrap one thing and index with another.
+impl<_Tag> IndexInfo for Wrapper<_Tag>
+where
+    _Tag: TypeInfo + CanIndex,
+{
+    type IndexType = _Tag::WrappedType;
+    fn as_index(&self) -> Self::IndexType {
+        self.0
+    }
+}
+
+impl<_Tag> std::fmt::Display for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+    _Tag::WrappedType: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// Get an ordering on it
+impl<_Tag> std::cmp::PartialEq for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+{
+    fn eq(&self, other: &Wrapper<_Tag>) -> bool {
+        self.0 == other.0
+    }
+}
+impl<_Tag> std::cmp::PartialOrd for Wrapper<_Tag>
+where
+    _Tag: TypeInfo,
+{
+    fn partial_cmp(&self, other: &Wrapper<_Tag>) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<T, _Tag> From<T> for Wrapper<_Tag>
+where
+    T: num::PrimInt,
+    _Tag: TypeInfo,
+{
+    fn from(t: T) -> Self {
+        Wrapper::<_Tag>(num::cast::<T, _Tag::WrappedType>(t).unwrap())
+    }
+}
+
+// This bit requires the paste crate
+macro_rules! def_wrapped {
+    ($name:ident[$wrapped:ty]) => {
+        paste::paste! {
+            #[derive(Debug, Clone, Copy)]
+            pub struct [<_ $name tag>]();
+            impl crate::wrapper::TypeInfo for [<_ $name tag>] {
+                type WrappedType = $wrapped;
             }
+            pub type $name = crate::wrapper::Wrapper<[<_ $name tag>]>;
         }
-        impl std::cmp::PartialOrd for $name {
-            fn partial_cmp(&self, other: &$name) -> Option<std::cmp::Ordering> {
-                self.0.partial_cmp(&other.0)
-            }
-        }
+    };
 
-        // Implement Wrapper so we can use that in the other macros
-        impl Wrapper<$w> for $name {
-            fn wrapped(&self) -> $w {
-                self.0
-            }
-        }
-
-        // For wrapped numbers, we also have this guy
-        impl NumWrapper<$w> for $name {}
-
-        // We need this one if we define index operators for this time
-        impl AsIndex<$w> for $name {
-            fn as_index(&self) -> $w {
-                self.0
-            }
+    ($name:ident[$wrapped:ty] as index) => {
+        paste::paste! {
+            crate::wrapper::def_wrapped!($name[$wrapped]);
+            impl crate::wrapper::CanIndex for [<_ $name tag>] {}
         }
     };
 }
-
-macro_rules! def_obj_wrapper {
-    ($name:ident wrapping $w:ty) => {
-        // Define the new type...
-        #[derive(Clone, Debug)] // FIXME: maybe not clone?
-        pub struct $name(pub $w);
-
-        impl std::ops::Deref for $name {
-            type Target = $w;
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
-    };
-
-    (mut $name:ident wrapping $w:ty) => {
-        def_obj_wrapper!($name wrapping $w);
-
-        impl std::ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
-            }
-        }
-    };
-}
-
-// Exporting macro to crate
-pub(crate) use def_num_wrapper;
-pub(crate) use def_obj_wrapper;
+pub(crate) use def_wrapped;
