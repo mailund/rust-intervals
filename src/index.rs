@@ -7,16 +7,17 @@ macro_rules! def_offset {
     };
 }
 
+// FIXME: this guy can't handle missing meta vars
 macro_rules! def_idx {
     ($idx:ident
         with offset $offset:ident
-        with sub [$($seq:ty[$meta:ty] => $res:ty),*]) => {
+        with sub [ $( meta < $($meta:ident),* >: $seq:ty => $res:ty),* ]) => {
         // Indices wrap usize
-        $crate::wrapper::def_wrapped!($idx[usize] as index);
+        $crate::wrapper::def_wrapped!($idx[usize]);
         // Arithmetic operations
         $crate::ops_macros::def_idx_ops!($idx with offset $offset);
         // Indexing
-        $($crate::index_macros::def_index!($seq[$meta] => $res);)*
+        $($crate::index_macros::def_index!(meta< $($meta),* >: $seq[$idx] => $res);)*
     };
 }
 
@@ -37,8 +38,9 @@ mod index_tests {
         Idx
         with offset Offset
         with sub [
-            Vec<T>[Idx] => T,
-            [T][Idx] => T
+            meta<T>: Vec<T> => T,
+            meta<>: [u32] => u32,
+            meta<>: [usize] => usize
         ]
     );
 
@@ -79,8 +81,8 @@ mod index_tests {
         for i in 0..n {
             assert_eq!(v[i], v[Idx::from(i)]);
         }
-        for i in 0..n {
-            w[Idx::from(i)] = 2 * i;
+        for i in Idx::from(0)..Idx::from(n) {
+            w[i] = i.wrapped() + 2;
             assert_eq!(v[i], v[Idx::from(i)]);
         }
     }

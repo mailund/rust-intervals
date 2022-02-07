@@ -36,10 +36,7 @@ mod range_tests {
     def_idx!(
         Idx
         with offset Offset
-        with sub [
-            Vec<T>[Idx] => T,
-            [T][Idx] => T
-        ]
+        with sub []
     );
 
     #[test]
@@ -55,7 +52,7 @@ mod experiments {
     use crate::*;
     def_offset!(Offset);
     def_idx!(Idx with offset Offset
-             with sub [Vec<T>[Idx] => T, [T][Idx] => T]
+             with sub []
     );
 }
 
@@ -158,6 +155,43 @@ mod range_experiments {
             range(..) as Range<Idx>
         );
         // for printing assert!(false);
+    }
+}
+
+impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
+where
+    Idx: IndexInfo<IndexType = usize>,
+    Idx: crate::wrapper::CanIndex<Vec<T>>,
+{
+    type Output = [T];
+    #[inline]
+    fn index(&self, r: Range<Idx>) -> &Self::Output {
+        match r {
+            Range::Closed(start, end) => &self[start.as_index()..end.as_index()],
+            Range::Left(start) => &self[start.as_index()..],
+            Range::Right(end) => &self[..end.as_index()],
+            Range::Full => &self[..],
+        }
+    }
+}
+
+#[cfg(test)]
+mod range_index_experiments {
+    use super::*;
+    use crate::*;
+    def_idx!(Idx with offset isize with sub []);
+    def_index!(meta<T>: Vec<T>[Idx] => T);
+    def_index!(meta<T>: [T][Idx] => T);
+
+    #[test]
+    fn test_range_index() {
+        let r: Range<Idx> = range(Idx::from(1)..Idx::from(4));
+        let v: Vec<u32> = vec![0, 1, 2, 3, 4, 5];
+        println!("{:?}", v);
+        println!("{:?}", v[Idx::from(1)]);
+        let w: &[u32] = &v[r];
+        println!("{:?}", w);
+        assert!(false);
     }
 }
 

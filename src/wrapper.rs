@@ -2,9 +2,6 @@
 pub trait TypeInfo {
     type WrappedType: num::PrimInt;
 }
-/// This is just a tag that says that this wrapped type
-/// can be used to index.
-pub trait CanIndex: TypeInfo {}
 
 /// A few places, this is useful for meta-programming. Mostly because I can't
 /// get the From<> trait to work half the time...
@@ -37,9 +34,13 @@ impl<T: TypeInfo> TypeTrait for Type<T> {
 
 /// Trait for types that can be used for indexing
 pub trait IndexInfo {
-    type IndexType: num::PrimInt;
+    type IndexType;
     fn as_index(&self) -> Self::IndexType;
 }
+
+/// For meta-programming. If type Sub implements CanIndex<Seq>
+/// it means that you can index Seq[Sub].
+pub trait CanIndex<Seq: ?Sized> {}
 
 // Type info for primitive types; we will wrap those for specific
 // type-safe types. Having the traits for all numbers makes meta-programming
@@ -61,14 +62,20 @@ macro_rules! def_wrap_index {
                     *self
                 }
             }
+            // These should return usize since that is the basic
+            // type for indexing in Rust's slices and vectors.
             impl IndexInfo for $t
             {
-                type IndexType = $t;
+                type IndexType = usize;
                 #[inline]
-                fn as_index(&self) -> Self::IndexType {
-                    *self
+                fn as_index(&self) -> usize {
+                    *self as usize
                 }
             }
+            // Generally assuming that any basic integer
+            // can be used to index, once the IndexInfo trait
+            // is defined
+            impl<Seq> CanIndex<Seq> for $t {}
         )*
     };
 }
@@ -99,12 +106,12 @@ where
 // a wrapper for an indexing type if we wrap one thing and index with another.
 impl<_Tag> IndexInfo for Wrapper<_Tag>
 where
-    _Tag: TypeInfo + CanIndex,
+    _Tag: TypeInfo,
 {
-    type IndexType = _Tag::WrappedType;
+    type IndexType = usize;
     #[inline]
-    fn as_index(&self) -> Self::IndexType {
-        self.0
+    fn as_index(&self) -> usize {
+        num::cast::<_Tag::WrappedType, usize>(self.0).unwrap()
     }
 }
 
@@ -159,13 +166,6 @@ macro_rules! def_wrapped {
                 type WrappedType = $wrapped;
             }
             pub type $name = crate::wrapper::Wrapper<[<_ $name tag>]>;
-        }
-    };
-
-    ($name:ident[$wrapped:ty] as index) => {
-        paste::paste! {
-            crate::wrapper::def_wrapped!($name[$wrapped]);
-            impl crate::wrapper::CanIndex for [<_ $name tag>] {}
         }
     };
 }
