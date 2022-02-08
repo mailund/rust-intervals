@@ -158,112 +158,44 @@ mod range_experiments {
     }
 }
 
-// Trait trickery to specify which sequences we can index with a range
-pub trait RangeIndexConstraits<Seq, Of> {
-    fn index_closed(&self, start: usize, end: usize) -> &[Of];
-    fn index_left(&self, start: usize) -> &[Of];
-    fn index_right(&self, end: usize) -> &[Of];
-    fn index_full(&self) -> &[Of];
-}
-impl<Seq, Of> RangeIndexConstraits<Seq, Of> for Seq
-where
-    Seq: std::ops::Index<std::ops::Range<usize>, Output = [Of]>,
-    Seq: std::ops::Index<std::ops::RangeFrom<usize>, Output = [Of]>,
-    Seq: std::ops::Index<std::ops::RangeTo<usize>, Output = [Of]>,
-    Seq: std::ops::Index<std::ops::RangeFull, Output = [Of]>,
-{
-    fn index_closed(&self, start: usize, end: usize) -> &[Of] {
-        &self[start..end]
-    }
-    fn index_left(&self, start: usize) -> &[Of] {
-        &self[start..]
-    }
-    fn index_right(&self, end: usize) -> &[Of] {
-        &self[..end]
-    }
-    fn index_full(&self) -> &[Of] {
-        &self[..]
-    }
-}
-
-/*
-impl<Of> RangeIndexConstraits<[Of], Of> for [Of]
-where
-    Of: std::marker::Sized,
-    [Of]: std::slice::SliceIndex<[Of]>,
-{
-    fn index_closed<'a>(seq: &'a [Of], start: usize, end: usize) -> &'a [Of] {
-        &seq[start..end]
-    }
-    fn index_left<'a>(seq: &'a [Of], start: usize) -> &'a [Of] {
-        &seq[start..]
-    }
-    fn index_right<'a>(seq: &'a [Of], end: usize) -> &'a [Of] {
-        &seq[..end]
-    }
-    fn index_full<'a>(seq: &'a [Of]) -> &'a [Of] {
-        &seq[..]
-    }
-}
-*/
-
-// Generic trickery for getting an index
-pub struct RangeIndex<Idx, Seq, Of> {
-    pub _idx: std::marker::PhantomData<Idx>,
-    pub _seq: std::marker::PhantomData<Seq>,
-    pub _of: std::marker::PhantomData<Of>,
-}
-impl<Idx, Seq, Of> RangeIndex<Idx, Seq, Of>
+impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
 where
     Idx: IndexInfo<IndexType = usize>,
-    Seq: RangeIndexConstraits<Seq, Of>,
+    Idx: CanIndex<Vec<T>>,
 {
-    #[inline]
-    fn range_index<'a>(seq: &'a Seq, r: Range<Idx>) -> &'a [Of] {
+    type Output = [T];
+    fn index(&self, r: Range<Idx>) -> &Self::Output {
         match r {
-            Range::Closed(start, end) => &seq.index_closed(start.as_index(), end.as_index()),
-            Range::Left(start) => &seq.index_left(start.as_index()),
-            Range::Right(end) => &seq.index_right(end.as_index()),
-            Range::Full => &seq.index_full(),
+            Range::Closed(start, end) => &self[start.as_index()..end.as_index()],
+            Range::Left(start) => &self[start.as_index()..],
+            Range::Right(end) => &self[..end.as_index()],
+            Range::Full => &self[..],
+        }
+    }
+}
+impl<Idx, T> std::ops::Index<Range<Idx>> for [T]
+where
+    Idx: IndexInfo<IndexType = usize>,
+    Idx: CanIndex<[T]>,
+{
+    type Output = [T];
+    fn index(&self, r: Range<Idx>) -> &Self::Output {
+        match r {
+            Range::Closed(start, end) => &self[start.as_index()..end.as_index()],
+            Range::Left(start) => &self[start.as_index()..],
+            Range::Right(end) => &self[..end.as_index()],
+            Range::Full => &self[..],
         }
     }
 }
 
-// I can't implement this for general types U (impl<Idx,U> Index<range<Idx>> for U)
-// but I can do it for specific ones...
-impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
-where
-    Idx: IndexInfo<IndexType = usize>,
-    Vec<T>: RangeIndexConstraits<Vec<T>, T>,
-{
-    type Output = <Vec<T> as std::ops::Index<std::ops::Range<usize>>>::Output;
-    #[inline]
-    fn index(&self, r: Range<Idx>) -> &Self::Output {
-        RangeIndex::<Idx, Vec<T>, T>::range_index(&self, r)
-    }
-}
-
-/* THIS SHIT FUCKING DOESN'T WORK
-impl<Idx, T> std::ops::Index<Range<Idx>> for &[T]
-where
-    Idx: IndexInfo<IndexType = usize>,
-    T: std::marker::Sized,
-    T: RangeIndexConstraits<&[T], T>,
-{
-    type Output = <&[T] as std::ops::Index<std::ops::Range<usize>>>::Output;
-    #[inline]
-    fn index(&self, r: Range<Idx>) -> &Self::Output {
-        RangeIndex::<Idx, &[T], T>::range_index(&self, r)
-    }
-}
-*/
-
 #[cfg(test)]
-mod range_index_experiments {
+mod range_index_sequences {
     use super::*;
     use crate::*;
     def_idx!(Idx with offset isize with sub [
-        meta<>: Vec<u32> => u32
+        meta<>: Vec<u32> => u32,
+        meta<T>: [T] => T
     ]);
     #[test]
     fn test_range_index() {
@@ -273,6 +205,7 @@ mod range_index_experiments {
         println!("{:?}", v[Idx::from(1)]);
         let w: &[u32] = &v[r];
         println!("{:?}", w);
+        println!("{:?}", &w[range(Idx::from(0)..)]);
 
         /* not legal subscript
         let v: Vec<i32> = vec![0, 1, 2, 3, 4, 5];
@@ -285,109 +218,76 @@ mod range_index_experiments {
     }
 }
 
-/*
-impl<_Tag, T> std::ops::Index<std::ops::Range<Wrapper<_Tag>>> for Vec<T> {
-    type Output = [T];
-    fn index(&self, i: std::ops::Range<Wrapper<_Tag>>) -> &Self::Output {
-        &self[0..4]
-    }
-}
-*/
-
-/*
-// See if we can get Range<T> objects to index when <T> can index
-/// Any of the wrapped types should have this.
-
-impl<T> crate::wrapper::TypeInfo for std::ops::Range<T>
-where
-    T: crate::wrapper::TypeInfo,
-{
-    type WrappedType = std::ops::Range<T::WrappedType>;
-}
-impl<T> CanIndex for std::ops::Range<T> where T: crate::wrapper::TypeInfo {}
-impl<T> IndexInfo for std::ops::Range<T>
-where
-    T: crate::wrapper::IndexInfo,
-{
-    type IndexType = std::ops::Range<T::IndexType>;
-    fn as_index(&self) -> Self::IndexType {
-        self.start.as_index()..self.end.as_index()
-    }
-}*/
-
-/*
-
-// Ranges are not quite good enough for our purposes. We want
-// immutable ranges that we can manipulate as data objecs.
-def_obj_wrapper!(Range wrapping ops::Range<Idx>);
-
-// Implement AsIndex for usize ranges so we can use those for slices
-use super::wrapper::AsIndex;
-impl AsIndex<std::ops::Range<usize>> for Range {
-    fn as_index(&self) -> std::ops::Range<usize> {
-        self.start.0..self.end.0
-    }
-}
-
-// Indexing with our new Range type
-def_index!(
-    Vec<T>[Range] => [T],
-    [T][Range] => [T]
-);
-
-// Constructors. Since the embedded range is private, these
-// are the only ways to create a Range, and they ensures that
-// all ranges are valid, i.e. that end >= start.
-
-/// Creates an interval if i <= j and return Some(-).
-/// If j < i, the interval is invalid and we return None
-pub fn safe_range(i: Idx, j: Idx) -> Option<Range> {
-    if i <= j {
-        Some(Range(i..j))
-    } else {
-        None
-    }
-}
-/// Creates a valid interval or panics if [i,j) is not
-/// a valid interval.
-pub fn range(i: Idx, j: Idx) -> Range {
-    safe_range(i, j).unwrap()
-}
-
 // I would love to reuse the underlying std::ops::Range iterator, but
 // I haven't figured out how to do that without moving it, and I definitely
 // do not want that. So, I implement a custom iterator.
 // FIXME: I probably should implment iterators going the other direction as
 // well, since I have algorithms where I need to run in the backwards
 // direction
-pub struct RangeForwardIterator {
+
+pub struct RangeForwardIterator<Idx> {
     cur: Idx,
-    step: Offset,
+    step: usize,
     end: Idx,
 }
-impl std::iter::Iterator for RangeForwardIterator {
+impl<Idx> std::iter::Iterator for RangeForwardIterator<Idx>
+where
+    Idx: Copy,
+    Idx: std::cmp::PartialOrd,
+    Idx: std::ops::AddAssign<usize>,
+{
     type Item = Idx;
     fn next(&mut self) -> Option<Self::Item> {
+        // If there is an end-point, and we have reached it,
+        // we stop.
         if self.cur >= self.end {
-            None
-        } else {
-            // Not worrying about overflow right now...
-            self.cur += self.step;
-            Some(self.cur - self.step)
+            return None;
+        }
+        // Not worrying about overflow right now...
+        let cur = self.cur;
+        self.cur += self.step;
+        Some(cur)
+    }
+}
+
+impl<Idx> Range<Idx>
+where
+    Idx: Copy,
+{
+    pub fn safe_iter(&self) -> Option<RangeForwardIterator<Idx>> {
+        match &self {
+            &Range::Closed(start, end) => Some(RangeForwardIterator {
+                cur: *start,
+                step: 1,
+                end: *end,
+            }),
+            _ => None,
+        }
+    }
+    pub fn iter(&self) -> RangeForwardIterator<Idx> {
+        self.safe_iter().unwrap()
+    }
+}
+
+#[cfg(test)]
+mod range_iterator_tests {
+    use super::*;
+
+    def_idx!(Idx with offset isize with sub []);
+
+    #[test]
+    fn test_iterator() {
+        let i = Idx::from(0);
+        let j = Idx::from(10);
+        let r = range(i..j);
+        for (k, l) in r.iter().enumerate() {
+            println!("{}", k);
+            assert_eq!(k, l.wrapped());
         }
     }
 }
 
-impl Range {
-    pub fn iter(&self) -> RangeForwardIterator {
-        RangeForwardIterator {
-            cur: self.start,
-            step: Offset(1),
-            end: self.end,
-        }
-    }
-}
-
+/*
 /// Representation of an interval that separates the two
 /// cases of an interval: empty and non-empty
 #[derive(Copy, Clone)]
