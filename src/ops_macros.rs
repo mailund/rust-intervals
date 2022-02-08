@@ -8,9 +8,9 @@ macro_rules! def_op {
             #[inline]
             fn add(self, rhs: $rhs) -> Self::Output {
                 let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&self);
+                    $crate::wrapper::WrapperType::wrapped_as(&self);
                 let rhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&rhs);
+                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
                 (lhs + rhs).into()
             }
         }
@@ -21,7 +21,7 @@ macro_rules! def_op {
             #[inline]
             fn add_assign(&mut self, rhs: $rhs) {
                 let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&rhs);
+                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
                 self.0 += rhs;
             }
         }
@@ -33,9 +33,9 @@ macro_rules! def_op {
             #[inline]
             fn sub(self, rhs: $rhs) -> Self::Output {
                 let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&self);
+                    $crate::wrapper::WrapperType::wrapped_as(&self);
                 let rhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&rhs);
+                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
                 (lhs - rhs).into()
             }
         }
@@ -46,7 +46,7 @@ macro_rules! def_op {
             #[inline]
             fn sub_assign(&mut self, rhs: $rhs) {
                 let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::wrapped(&rhs);
+                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
                 self.0 -= rhs;
             }
         }

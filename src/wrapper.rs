@@ -1,11 +1,20 @@
+// SECTION: Traits for keeping track of types and type information
+
 /// Any of the wrapped types should have this.
+/// You define new types that implement it to define new
+/// wrapped types.
 pub trait TypeInfo {
     type WrappedType: num::PrimInt;
 }
 
+/// Trait for types that can be used for indexing
+pub trait IndexType {
+    fn as_index(&self) -> usize;
+}
+
 /// A few places, this is useful for meta-programming. Mostly because I can't
 /// get the From<> trait to work half the time...
-pub trait WrapInfo: TypeInfo {
+pub trait WrapperType: TypeInfo {
     fn wrapped(&self) -> Self::WrappedType;
     #[inline]
     fn wrapped_as<T: num::PrimInt>(&self) -> T {
@@ -13,33 +22,8 @@ pub trait WrapInfo: TypeInfo {
     }
 }
 
-/// Convinience function for getting the underlying integer from a
-/// wrapper. This is slightly easier to use in macros.
-#[inline]
-pub fn wrapped<T: num::PrimInt>(wrapper: &impl WrapInfo) -> T {
-    wrapper.wrapped_as()
-}
-
-/// Hack to get the type of a TypeInfo implementation. You can get it
-/// as Type<T>::Type where T: TypeInfo.
-pub trait TypeTrait {
-    type Type;
-}
-pub struct Type<T: TypeInfo> {
-    marker: std::marker::PhantomData<T>,
-}
-impl<T: TypeInfo> TypeTrait for Type<T> {
-    type Type = <T as TypeInfo>::WrappedType;
-}
-
-/// Trait for types that can be used for indexing
-pub trait IndexInfo {
-    type IndexType;
-    fn as_index(&self) -> Self::IndexType;
-}
-
-/// For meta-programming. If type Sub implements CanIndex<Seq>
-/// it means that you can index Seq[Sub] => To.
+/// For meta-programming. Implemented for types that can index
+/// the type Seq
 pub trait CanIndex<Seq: ?Sized> {}
 
 // Type info for primitive types; we will wrap those for specific
@@ -55,7 +39,7 @@ macro_rules! def_wrap_index {
             {
                 type WrappedType = $t;
             }
-            impl WrapInfo for $t
+            impl WrapperType for $t
             {
                 #[inline]
                 fn wrapped(&self) -> Self::WrappedType {
@@ -64,9 +48,8 @@ macro_rules! def_wrap_index {
             }
             // These should return usize since that is the basic
             // type for indexing in Rust's slices and vectors.
-            impl IndexInfo for $t
+            impl IndexType for $t
             {
-                type IndexType = usize;
                 #[inline]
                 fn as_index(&self) -> usize {
                     *self as usize
@@ -81,6 +64,7 @@ macro_rules! def_wrap_index {
 }
 def_wrap_index!(usize, isize, u128, i128, u64, i64, u32, i32, u16, i16, u8, i8);
 
+// SECTION: Now the wrapper type
 #[derive(Debug, Clone, Copy)]
 pub struct Wrapper<_Tag>(pub _Tag::WrappedType)
 where
@@ -92,7 +76,7 @@ where
 {
     type WrappedType = _Tag::WrappedType;
 }
-impl<_Tag> WrapInfo for Wrapper<_Tag>
+impl<_Tag> WrapperType for Wrapper<_Tag>
 where
     _Tag: TypeInfo,
 {
@@ -101,14 +85,11 @@ where
         self.0
     }
 }
-// When using a wrapped object for indexing, we have a general solution
-// as long as the wrapped type is something we can index. We can still specialise
-// a wrapper for an indexing type if we wrap one thing and index with another.
-impl<_Tag> IndexInfo for Wrapper<_Tag>
+
+impl<_Tag> IndexType for Wrapper<_Tag>
 where
     _Tag: TypeInfo,
 {
-    type IndexType = usize;
     #[inline]
     fn as_index(&self) -> usize {
         num::cast::<_Tag::WrappedType, usize>(self.0).unwrap()
@@ -156,7 +137,11 @@ where
     }
 }
 
-// This bit requires the paste crate
+// This bit requires the paste crate.
+// It defines a new type and a wrapper for it. The type is used
+// as a tag to make the type unique, but the main functionality is in
+// Wrapper. The wrapper just needs to know about TypeInfo and then
+// it will handle the rest
 macro_rules! def_wrapped {
     ($name:ident[$wrapped:ty]) => {
         paste::paste! {

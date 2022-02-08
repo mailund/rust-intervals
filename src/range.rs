@@ -160,7 +160,7 @@ mod range_experiments {
 
 impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
 where
-    Idx: IndexInfo<IndexType = usize>,
+    Idx: IndexType,
     Idx: CanIndex<Vec<T>>,
 {
     type Output = [T];
@@ -175,7 +175,7 @@ where
 }
 impl<Idx, T> std::ops::Index<Range<Idx>> for [T]
 where
-    Idx: IndexInfo<IndexType = usize>,
+    Idx: IndexType,
     Idx: CanIndex<[T]>,
 {
     type Output = [T];
@@ -238,12 +238,9 @@ where
 {
     type Item = Idx;
     fn next(&mut self) -> Option<Self::Item> {
-        // If there is an end-point, and we have reached it,
-        // we stop.
         if self.cur >= self.end {
             return None;
         }
-        // Not worrying about overflow right now...
         let cur = self.cur;
         self.cur += self.step;
         Some(cur)
