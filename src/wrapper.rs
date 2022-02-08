@@ -39,7 +39,7 @@ pub trait IndexInfo {
 }
 
 /// For meta-programming. If type Sub implements CanIndex<Seq>
-/// it means that you can index Seq[Sub].
+/// it means that you can index Seq[Sub] => To.
 pub trait CanIndex<Seq: ?Sized> {}
 
 // Type info for primitive types; we will wrap those for specific
@@ -75,7 +75,7 @@ macro_rules! def_wrap_index {
             // Generally assuming that any basic integer
             // can be used to index, once the IndexInfo trait
             // is defined
-            impl<Seq> CanIndex<Seq> for $t {}
+            impl<Seq> CanIndex<Seq> for $t { }
         )*
     };
 }

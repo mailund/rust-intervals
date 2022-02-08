@@ -158,31 +158,113 @@ mod range_experiments {
     }
 }
 
-impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
+// Trait trickery to specify which sequences we can index with a range
+pub trait RangeIndexConstraits<Seq, Of> {
+    fn index_closed(&self, start: usize, end: usize) -> &[Of];
+    fn index_left(&self, start: usize) -> &[Of];
+    fn index_right(&self, end: usize) -> &[Of];
+    fn index_full(&self) -> &[Of];
+}
+impl<Seq, Of> RangeIndexConstraits<Seq, Of> for Seq
+where
+    Seq: std::ops::Index<std::ops::Range<usize>, Output = [Of]>,
+    Seq: std::ops::Index<std::ops::RangeFrom<usize>, Output = [Of]>,
+    Seq: std::ops::Index<std::ops::RangeTo<usize>, Output = [Of]>,
+    Seq: std::ops::Index<std::ops::RangeFull, Output = [Of]>,
+{
+    fn index_closed(&self, start: usize, end: usize) -> &[Of] {
+        &self[start..end]
+    }
+    fn index_left(&self, start: usize) -> &[Of] {
+        &self[start..]
+    }
+    fn index_right(&self, end: usize) -> &[Of] {
+        &self[..end]
+    }
+    fn index_full(&self) -> &[Of] {
+        &self[..]
+    }
+}
+
+/*
+impl<Of> RangeIndexConstraits<[Of], Of> for [Of]
+where
+    Of: std::marker::Sized,
+    [Of]: std::slice::SliceIndex<[Of]>,
+{
+    fn index_closed<'a>(seq: &'a [Of], start: usize, end: usize) -> &'a [Of] {
+        &seq[start..end]
+    }
+    fn index_left<'a>(seq: &'a [Of], start: usize) -> &'a [Of] {
+        &seq[start..]
+    }
+    fn index_right<'a>(seq: &'a [Of], end: usize) -> &'a [Of] {
+        &seq[..end]
+    }
+    fn index_full<'a>(seq: &'a [Of]) -> &'a [Of] {
+        &seq[..]
+    }
+}
+*/
+
+// Generic trickery for getting an index
+pub struct RangeIndex<Idx, Seq, Of> {
+    pub _idx: std::marker::PhantomData<Idx>,
+    pub _seq: std::marker::PhantomData<Seq>,
+    pub _of: std::marker::PhantomData<Of>,
+}
+impl<Idx, Seq, Of> RangeIndex<Idx, Seq, Of>
 where
     Idx: IndexInfo<IndexType = usize>,
-    Idx: crate::wrapper::CanIndex<Vec<T>>,
+    Seq: RangeIndexConstraits<Seq, Of>,
 {
-    type Output = [T];
     #[inline]
-    fn index(&self, r: Range<Idx>) -> &Self::Output {
+    fn range_index<'a>(seq: &'a Seq, r: Range<Idx>) -> &'a [Of] {
         match r {
-            Range::Closed(start, end) => &self[start.as_index()..end.as_index()],
-            Range::Left(start) => &self[start.as_index()..],
-            Range::Right(end) => &self[..end.as_index()],
-            Range::Full => &self[..],
+            Range::Closed(start, end) => &seq.index_closed(start.as_index(), end.as_index()),
+            Range::Left(start) => &seq.index_left(start.as_index()),
+            Range::Right(end) => &seq.index_right(end.as_index()),
+            Range::Full => &seq.index_full(),
         }
     }
 }
+
+// I can't implement this for general types U (impl<Idx,U> Index<range<Idx>> for U)
+// but I can do it for specific ones...
+impl<Idx, T> std::ops::Index<Range<Idx>> for Vec<T>
+where
+    Idx: IndexInfo<IndexType = usize>,
+    Vec<T>: RangeIndexConstraits<Vec<T>, T>,
+{
+    type Output = <Vec<T> as std::ops::Index<std::ops::Range<usize>>>::Output;
+    #[inline]
+    fn index(&self, r: Range<Idx>) -> &Self::Output {
+        RangeIndex::<Idx, Vec<T>, T>::range_index(&self, r)
+    }
+}
+
+/* THIS SHIT FUCKING DOESN'T WORK
+impl<Idx, T> std::ops::Index<Range<Idx>> for &[T]
+where
+    Idx: IndexInfo<IndexType = usize>,
+    T: std::marker::Sized,
+    T: RangeIndexConstraits<&[T], T>,
+{
+    type Output = <&[T] as std::ops::Index<std::ops::Range<usize>>>::Output;
+    #[inline]
+    fn index(&self, r: Range<Idx>) -> &Self::Output {
+        RangeIndex::<Idx, &[T], T>::range_index(&self, r)
+    }
+}
+*/
 
 #[cfg(test)]
 mod range_index_experiments {
     use super::*;
     use crate::*;
-    def_idx!(Idx with offset isize with sub []);
-    def_index!(meta<T>: Vec<T>[Idx] => T);
-    def_index!(meta<T>: [T][Idx] => T);
-
+    def_idx!(Idx with offset isize with sub [
+        meta<>: Vec<u32> => u32
+    ]);
     #[test]
     fn test_range_index() {
         let r: Range<Idx> = range(Idx::from(1)..Idx::from(4));
@@ -191,7 +273,15 @@ mod range_index_experiments {
         println!("{:?}", v[Idx::from(1)]);
         let w: &[u32] = &v[r];
         println!("{:?}", w);
+
+        /* not legal subscript
+        let v: Vec<i32> = vec![0, 1, 2, 3, 4, 5];
+        println!("{:?}", v);
+        println!("{:?}", v[Idx::from(1)]);
+        let w: &[i32] = &v[r];
+        println!("{:?}", w);
         assert!(false);
+        */
     }
 }
 
