@@ -1,10 +1,13 @@
 // SECTION: Traits for keeping track of types and type information
 
-/// Any of the wrapped types should have this.
-/// You define new types that implement it to define new
-/// wrapped types.
-pub trait TypeInfo {
-    type WrappedType: num::PrimInt;
+/// Implement this to behave like a number
+pub trait NumberType {
+    type Type: num::NumCast;
+    fn value(&self) -> Self::Type;
+    #[inline]
+    fn value_as<T: num::NumCast>(&self) -> T {
+        num::cast::<Self::Type, T>(self.value()).unwrap()
+    }
 }
 
 /// Trait for types that can be used for indexing
@@ -12,21 +15,7 @@ pub trait IndexType {
     fn as_index(&self) -> usize;
 }
 
-/// A few places, this is useful for meta-programming. Mostly because I can't
-/// get the From<> trait to work half the time...
-pub trait WrapperType: TypeInfo {
-    fn wrapped(&self) -> Self::WrappedType;
-    #[inline]
-    fn wrapped_as<T: num::PrimInt>(&self) -> T {
-        num::cast::<Self::WrappedType, T>(self.wrapped()).unwrap()
-    }
-}
-
-/// For meta-programming. Implemented for types that can index
-/// the type Seq
-pub trait CanIndex<Seq: ?Sized> {}
-
-// Type info for primitive types; we will wrap those for specific
+// IntegerType for primitive types; we will wrap those for specific
 // type-safe types. Having the traits for all numbers makes meta-programming
 // a lot easier. Numerical types just wrap themselves.
 // It would be nicer to implement this as generics but num::PrimInt can be
@@ -35,14 +24,11 @@ pub trait CanIndex<Seq: ?Sized> {}
 macro_rules! def_wrap_index {
     ($($t:ty),*) => {
         $(
-            impl TypeInfo for $t
+            impl NumberType for $t
             {
-                type WrappedType = $t;
-            }
-            impl WrapperType for $t
-            {
+                type Type = $t;
                 #[inline]
-                fn wrapped(&self) -> Self::WrappedType {
+                fn value(&self) -> Self::Type {
                     *self
                 }
             }
@@ -55,16 +41,88 @@ macro_rules! def_wrap_index {
                     *self as usize
                 }
             }
-            // Generally assuming that any basic integer
-            // can be used to index, once the IndexInfo trait
-            // is defined
-            impl<Seq> CanIndex<Seq> for $t { }
         )*
     };
 }
 def_wrap_index!(usize, isize, u128, i128, u64, i64, u32, i32, u16, i16, u8, i8);
 
+pub trait TypeTrait {
+    type Type: num::PrimInt;
+}
+
+pub struct Val<T: TypeTrait>(pub T::Type);
+
+impl<_Tag> std::fmt::Display for Val<_Tag>
+where
+    _Tag: TypeTrait,
+    _Tag::Type: std::fmt::Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+// Get an ordering on it
+impl<_Tag> std::cmp::PartialEq for Val<_Tag>
+where
+    _Tag: TypeTrait,
+{
+    #[inline]
+    fn eq(&self, other: &Val<_Tag>) -> bool {
+        self.0 == other.0
+    }
+}
+impl<_Tag> std::cmp::PartialOrd for Val<_Tag>
+where
+    _Tag: TypeTrait,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Val<_Tag>) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<_Tag> NumberType for Val<_Tag>
+where
+    _Tag: TypeTrait,
+{
+    type Type = _Tag::Type;
+    fn value(&self) -> Self::Type {
+        self.0
+    }
+}
+
+impl<_Tag> IndexType for Val<_Tag>
+where
+    _Tag: TypeTrait<Type = usize>,
+{
+    fn as_index(&self) -> usize {
+        self.0
+    }
+}
+
+macro_rules! new_type {
+    ($name:ident[$type:ty]) => {
+        pub struct $name();
+        impl $crate::wrapper::TypeTrait for $name {
+            type Type = $type;
+        }
+    };
+}
+
+new_type!(X[u32]);
+new_type!(Y[i64]);
+
+fn narko() {
+    let x: Val<X> = Val(32);
+    let y: Val<Y> = Val(64);
+    let z: Val<X> = Val(16);
+    //println!("{} < {} == {}", x, y, x < y);
+    println!("{} < {} == {}", x, z, x < z);
+}
+
 // SECTION: Now the wrapper type
+/*
 #[derive(Debug, Clone, Copy)]
 pub struct Wrapper<_Tag>(pub _Tag::WrappedType)
 where
@@ -155,3 +213,4 @@ macro_rules! def_wrapped {
     };
 }
 pub(crate) use def_wrapped;
+*/
