@@ -8,15 +8,15 @@ macro_rules! def_ops {
 
         // lhs + rhs => res
         ( @ $lhs:tt + $rhs:tt => $res:tt ) => {
-            impl std::ops::Add<def_ops!(@ wrap $rhs)>
-                for def_ops!(@ wrap$lhs)
+            impl std::ops::Add<$crate::def_ops!(@ wrap $rhs)>
+                for $crate::def_ops!(@ wrap$lhs)
             {
-                type Output = def_ops!(@ wrap$res);
+                type Output = $crate::def_ops!(@ wrap$res);
                 #[inline]
-                fn add(self, rhs: def_ops!(@ wrap $rhs)) -> Self::Output {
-                    let lhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                fn add(self, rhs: $crate::def_ops!(@ wrap $rhs)) -> Self::Output {
+                    let lhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
                         $crate::wrapper::NumberType::value_as(&self);
-                    let rhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                    let rhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
                         $crate::wrapper::NumberType::value_as(&rhs);
                     (lhs + rhs).into()
                 }
@@ -25,12 +25,12 @@ macro_rules! def_ops {
 
         // lhs += rhs
         ( @ $lhs:tt += $rhs:tt ) => {
-        impl std::ops::AddAssign<def_ops!(@ wrap $rhs)>
-            for def_ops!(@ wrap$lhs)
+        impl std::ops::AddAssign<$crate::def_ops!(@ wrap $rhs)>
+            for $crate::def_ops!(@ wrap$lhs)
         {
             #[inline]
-            fn add_assign(&mut self, rhs: def_ops!(@ wrap $rhs)) {
-                let rhs: <def_ops!(@ wrap $lhs) as $crate::wrapper::NumberType>::Type =
+            fn add_assign(&mut self, rhs: $crate::def_ops!(@ wrap $rhs)) {
+                let rhs: <$crate::def_ops!(@ wrap $lhs) as $crate::wrapper::NumberType>::Type =
                     $crate::wrapper::NumberType::value_as(&rhs);
                 self.0 += rhs;
             }
@@ -39,14 +39,14 @@ macro_rules! def_ops {
 
     // lhs - rhs => res
     ( @ $lhs:tt - $rhs:tt => $res:tt ) => {
-        impl std::ops::Sub<def_ops!(@ wrap $rhs)> for def_ops!(@ wrap $lhs)
+        impl std::ops::Sub<$crate::def_ops!(@ wrap $rhs)> for $crate::def_ops!(@ wrap $lhs)
         {
-            type Output = def_ops!(@ wrap $res);
+            type Output = $crate::def_ops!(@ wrap $res);
             #[inline]
-            fn sub(self, rhs: def_ops!(@ wrap $rhs)) -> Self::Output {
-                let lhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+            fn sub(self, rhs: $crate::def_ops!(@ wrap $rhs)) -> Self::Output {
+                let lhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
                     $crate::wrapper::NumberType::value_as(&self);
-                let rhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                let rhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
                     $crate::wrapper::NumberType::value_as(&rhs);
                 (lhs - rhs).into()
             }
@@ -55,7 +55,7 @@ macro_rules! def_ops {
 
 
     ( $( $lhs:tt $op:tt $rhs:tt $( => $res:tt  )? );+ ) => {
-        $( def_ops!( @ $lhs $op $rhs $( => $res )? ); )+
+        $( $crate::def_ops!( @ $lhs $op $rhs $( => $res )? ); )+
     };
 }
 pub(crate) use def_ops;

@@ -50,7 +50,11 @@ pub trait TypeTrait {
     type Type: num::PrimInt;
 }
 
-pub struct Val<T: TypeTrait>(pub T::Type);
+#[derive(Clone, Copy, Debug)]
+pub struct Val<_Tag>(pub _Tag::Type)
+where
+    _Tag: TypeTrait,
+    _Tag::Type: Copy;
 
 impl<_Tag> std::fmt::Display for Val<_Tag>
 where
@@ -103,6 +107,7 @@ where
     }
 }
 
+// We can index if the type is an usize
 impl<_Tag> IndexType for Val<_Tag>
 where
     _Tag: TypeTrait<Type = usize>,
@@ -115,6 +120,7 @@ where
 macro_rules! new_types {
     ($( $name:ident[$type:ty] ),+ ) => {
         $(
+            #[derive(Clone, Copy, Debug)]
             pub struct $name();
             impl $crate::wrapper::TypeTrait for $name {
                 type Type = $type;
@@ -124,17 +130,180 @@ macro_rules! new_types {
 }
 pub(crate) use new_types;
 
+// SECTION: Index
+pub trait CanIndexTag<T: ?Sized> {}
+
+// usize can index everything
+impl<T> CanIndexTag<T> for usize {}
+
+// A Val can index if its trait can index
+impl<_Tag, T> CanIndexTag<T> for Val<_Tag>
+where
+    _Tag: TypeTrait,
+    _Tag: CanIndexTag<T>,
+{
+}
+
+impl<_Tag, T> std::ops::Index<Val<_Tag>> for Vec<T>
+where
+    _Tag: TypeTrait,
+    _Tag: CanIndexTag<Vec<T>>,
+{
+    type Output = T;
+    #[inline]
+    fn index(&self, i: Val<_Tag>) -> &Self::Output {
+        &self[i.value_as::<usize>()]
+    }
+}
+
+impl<_Tag, T> std::ops::Index<Val<_Tag>> for [T]
+where
+    _Tag: TypeTrait,
+    _Tag: CanIndexTag<Vec<T>>,
+{
+    type Output = T;
+    #[inline]
+    fn index(&self, i: Val<_Tag>) -> &Self::Output {
+        &self[i.value_as::<usize>()]
+    }
+}
+
+// SECTION: hack hack with wrapper sequences
+use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
+
+pub trait SeqTrait {}
+
+#[derive(Debug)]
+#[repr(transparent)] // Because of this we can soundly cast `&{mut }IdxSlice<T>` to `&{mut }[T]`.
+pub struct IdxSlice<_Tag: SeqTrait, T>(std::marker::PhantomData<_Tag>, [T]);
+
+impl<'a, _Tag, T> From<&'a [T]> for &'a IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+{
+    fn from(v: &'a [T]) -> &'a IdxSlice<_Tag, T> {
+        unsafe { &*(v as *const [T] as *const IdxSlice<_Tag, T>) }
+    }
+}
+impl<'a, _Tag, T> From<&'a mut [T]> for &'a mut IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+{
+    fn from(v: &'a mut [T]) -> &'a mut IdxSlice<_Tag, T> {
+        unsafe { &mut *(v as *mut [T] as *mut IdxSlice<_Tag, T>) }
+    }
+}
+
+impl<Idx, _Tag, T> Index<Idx> for IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+    Idx: NumberType,
+    Idx: CanIndexTag<_Tag>,
+{
+    type Output = T;
+    fn index(&self, idx: Idx) -> &Self::Output {
+        &self.1[idx.value_as::<usize>()]
+    }
+}
+impl<Idx, _Tag, T> IndexMut<Idx> for IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+    Idx: NumberType,
+    Idx: CanIndexTag<_Tag>,
+{
+    fn index_mut(&mut self, idx: Idx) -> &mut Self::Output {
+        &mut self.1[idx.value_as::<usize>()]
+    }
+}
+
+impl<Idx, _Tag, T> Index<Range<Idx>> for IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+    Idx: NumberType,
+    Idx: CanIndexTag<_Tag>,
+{
+    type Output = IdxSlice<_Tag, T>;
+    fn index(&self, idx: Range<Idx>) -> &Self::Output {
+        self.1[idx.start.value_as::<usize>()..idx.end.value_as::<usize>()].into()
+    }
+}
+impl<Idx, _Tag, T> IndexMut<Range<Idx>> for IdxSlice<_Tag, T>
+where
+    _Tag: SeqTrait,
+    Idx: NumberType,
+    Idx: CanIndexTag<_Tag>,
+{
+    fn index_mut(&mut self, idx: Range<Idx>) -> &mut Self::Output {
+        (&mut self.1[idx.start.value_as::<usize>()..idx.end.value_as::<usize>()]).into()
+    }
+}
+// And so on, for all range types...
+
+pub struct IdxVec<_Tag: SeqTrait, T>(pub Vec<T>, std::marker::PhantomData<_Tag>);
+
+impl<_Tag, T> From<Vec<T>> for IdxVec<_Tag, T>
+where
+    _Tag: SeqTrait,
+{
+    fn from(v: Vec<T>) -> IdxVec<_Tag, T> {
+        IdxVec::<_Tag, T>(v, std::marker::PhantomData)
+    }
+}
+
+impl<_Tag, T> Deref for IdxVec<_Tag, T>
+where
+    _Tag: SeqTrait,
+{
+    type Target = IdxSlice<_Tag, T>;
+    fn deref(&self) -> &Self::Target {
+        self.0.as_slice().into()
+    }
+}
+impl<_Tag, T> DerefMut for IdxVec<_Tag, T>
+where
+    _Tag: SeqTrait,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut_slice().into()
+    }
+}
+
+// SECTION: experiments
+
 new_types!(X[u32], Y[i64]);
 super::def_ops! {
     [X] + [X] => usize;
     [Y] - [Y] => [Y];
     [Y] += isize
 }
+impl<T> CanIndexTag<Vec<T>> for X {}
+impl CanIndexTag<[u32]> for X {}
 
+#[derive(Debug)]
+struct ST {}
+impl SeqTrait for ST {}
+impl CanIndexTag<ST> for X {}
+
+#[test]
 fn narko() {
-    let x: Val<X> = Val(32);
+    let x: Val<X> = Val(0);
     let y: Val<Y> = Val(64);
     let z: Val<X> = Val(16);
     //println!("{} < {} == {}", x, y, x < y);
     println!("{} < {} == {}", x, z, x < z);
+
+    let v: Vec<u32> = vec![1, 2, 3, 4, 5];
+    let w: &[u32] = &v[2..];
+    println!("v[x] = {}", v[x]);
+    println!("w[x] = {}", w[x]);
+    // println!("v[y] = {}", v[y]);
+
+    let v: IdxVec<ST, u32> = vec![1, 2, 3, 4, 5].into();
+    let (i, j): (Val<X>, Val<X>) = (0.into(), 3.into());
+    let w = &v[i..j];
+    println!("w = {:?}", &w);
+    println!("v[x] = {}", v[x]);
+    println!("w[x] = {}", w[x]);
+    // println!("v[y] = {}", v[y]);
+    assert!(false);
 }
