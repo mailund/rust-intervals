@@ -62,6 +62,17 @@ where
     }
 }
 
+// Implementing From just to make it easier to create objects
+impl<T, _Tag> From<T> for Val<_Tag>
+where
+    T: num::PrimInt,
+    _Tag: TypeTrait,
+{
+    fn from(t: T) -> Self {
+        Val(num::cast::<T, _Tag::Type>(t).unwrap())
+    }
+}
+
 // Get an ordering on it
 impl<_Tag> std::cmp::PartialEq for Val<_Tag>
 where
@@ -101,17 +112,24 @@ where
     }
 }
 
-macro_rules! new_type {
-    ($name:ident[$type:ty]) => {
-        pub struct $name();
-        impl $crate::wrapper::TypeTrait for $name {
-            type Type = $type;
-        }
+macro_rules! new_types {
+    ($( $name:ident[$type:ty] ),+ ) => {
+        $(
+            pub struct $name();
+            impl $crate::wrapper::TypeTrait for $name {
+                type Type = $type;
+            }
+        )+
     };
 }
+pub(crate) use new_types;
 
-new_type!(X[u32]);
-new_type!(Y[i64]);
+new_types!(X[u32], Y[i64]);
+super::def_ops! {
+    [X] + [X] => usize;
+    [Y] - [Y] => [Y];
+    [Y] += isize
+}
 
 fn narko() {
     let x: Val<X> = Val(32);
@@ -120,97 +138,3 @@ fn narko() {
     //println!("{} < {} == {}", x, y, x < y);
     println!("{} < {} == {}", x, z, x < z);
 }
-
-// SECTION: Now the wrapper type
-/*
-#[derive(Debug, Clone, Copy)]
-pub struct Wrapper<_Tag>(pub _Tag::WrappedType)
-where
-    _Tag: TypeInfo;
-
-impl<_Tag> TypeInfo for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-{
-    type WrappedType = _Tag::WrappedType;
-}
-impl<_Tag> WrapperType for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-{
-    #[inline]
-    fn wrapped(&self) -> _Tag::WrappedType {
-        self.0
-    }
-}
-
-impl<_Tag> IndexType for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-{
-    #[inline]
-    fn as_index(&self) -> usize {
-        num::cast::<_Tag::WrappedType, usize>(self.0).unwrap()
-    }
-}
-
-impl<_Tag> std::fmt::Display for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-    _Tag::WrappedType: std::fmt::Display,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-// Get an ordering on it
-impl<_Tag> std::cmp::PartialEq for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-{
-    #[inline]
-    fn eq(&self, other: &Wrapper<_Tag>) -> bool {
-        self.0 == other.0
-    }
-}
-impl<_Tag> std::cmp::PartialOrd for Wrapper<_Tag>
-where
-    _Tag: TypeInfo,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &Wrapper<_Tag>) -> Option<std::cmp::Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl<T, _Tag> From<T> for Wrapper<_Tag>
-where
-    T: num::PrimInt,
-    _Tag: TypeInfo,
-{
-    #[inline]
-    fn from(t: T) -> Self {
-        Wrapper::<_Tag>(num::cast::<T, _Tag::WrappedType>(t).unwrap())
-    }
-}
-
-// This bit requires the paste crate.
-// It defines a new type and a wrapper for it. The type is used
-// as a tag to make the type unique, but the main functionality is in
-// Wrapper. The wrapper just needs to know about TypeInfo and then
-// it will handle the rest
-macro_rules! def_wrapped {
-    ($name:ident[$wrapped:ty]) => {
-        paste::paste! {
-            #[derive(Debug, Clone, Copy)]
-            pub struct [<_ $name tag>]();
-            impl crate::wrapper::TypeInfo for [<_ $name tag>] {
-                type WrappedType = $wrapped;
-            }
-            pub type $name = crate::wrapper::Wrapper<[<_ $name tag>]>;
-        }
-    };
-}
-pub(crate) use def_wrapped;
-*/

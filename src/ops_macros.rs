@@ -1,58 +1,66 @@
-use super::*;
-
 /// Macro for defining numerical operators on wrapper types.
-macro_rules! def_op {
-    ($lhs:ident + $rhs:ident => $res:ident) => {
-        impl std::ops::Add<$rhs> for $lhs {
-            type Output = $res;
-            #[inline]
-            fn add(self, rhs: $rhs) -> Self::Output {
-                let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&self);
-                let rhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
-                (lhs + rhs).into()
-            }
-        }
-    };
+macro_rules! def_ops {
 
-    ($lhs:ident += $rhs:ident) => {
-        impl std::ops::AddAssign<$rhs> for $lhs {
+        // [T] is a wrapped type
+        ( @ wrap [$id:ident] ) => { Val<$id> };
+        // raw identifier is just kept as it is
+        ( @ wrap $id:ident) => { $id };
+
+        // lhs + rhs => res
+        ( @ $lhs:tt + $rhs:tt => $res:tt ) => {
+            impl std::ops::Add<def_ops!(@ wrap $rhs)>
+                for def_ops!(@ wrap$lhs)
+            {
+                type Output = def_ops!(@ wrap$res);
+                #[inline]
+                fn add(self, rhs: def_ops!(@ wrap $rhs)) -> Self::Output {
+                    let lhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                        $crate::wrapper::NumberType::value_as(&self);
+                    let rhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                        $crate::wrapper::NumberType::value_as(&rhs);
+                    (lhs + rhs).into()
+                }
+            }
+        };
+
+        // lhs += rhs
+        ( @ $lhs:tt += $rhs:tt ) => {
+        impl std::ops::AddAssign<def_ops!(@ wrap $rhs)>
+            for def_ops!(@ wrap$lhs)
+        {
             #[inline]
-            fn add_assign(&mut self, rhs: $rhs) {
-                let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
+            fn add_assign(&mut self, rhs: def_ops!(@ wrap $rhs)) {
+                let rhs: <def_ops!(@ wrap $lhs) as $crate::wrapper::NumberType>::Type =
+                    $crate::wrapper::NumberType::value_as(&rhs);
                 self.0 += rhs;
             }
         }
     };
 
-    ($lhs:ident - $rhs:ident => $res:ident) => {
-        impl std::ops::Sub<$rhs> for $lhs {
-            type Output = $res;
+    // lhs - rhs => res
+    ( @ $lhs:tt - $rhs:tt => $res:tt ) => {
+        impl std::ops::Sub<def_ops!(@ wrap $rhs)> for def_ops!(@ wrap $lhs)
+        {
+            type Output = def_ops!(@ wrap $res);
             #[inline]
-            fn sub(self, rhs: $rhs) -> Self::Output {
-                let lhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&self);
-                let rhs: <$res as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
+            fn sub(self, rhs: def_ops!(@ wrap $rhs)) -> Self::Output {
+                let lhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                    $crate::wrapper::NumberType::value_as(&self);
+                let rhs: <def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
+                    $crate::wrapper::NumberType::value_as(&rhs);
                 (lhs - rhs).into()
             }
         }
     };
 
-    ($lhs:ident -= $rhs:ident) => {
-        impl std::ops::SubAssign<$rhs> for $lhs {
-            #[inline]
-            fn sub_assign(&mut self, rhs: $rhs) {
-                let rhs: <$lhs as $crate::wrapper::TypeInfo>::WrappedType =
-                    $crate::wrapper::WrapperType::wrapped_as(&rhs);
-                self.0 -= rhs;
-            }
-        }
+
+    ( $( $lhs:tt $op:tt $rhs:tt $( => $res:tt  )? );+ ) => {
+        $( def_ops!( @ $lhs $op $rhs $( => $res )? ); )+
     };
 }
+pub(crate) use def_ops;
 
+/*
 macro_rules! def_offset_ops {
     ($offset:ident) => {
         // Offsets and scalars
@@ -106,4 +114,5 @@ mod ops_macros_test {
         with sub []
     );
 }
+*/
 */
