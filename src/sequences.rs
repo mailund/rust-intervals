@@ -24,10 +24,23 @@ macro_rules! new_seq_types {
         $( std::marker::PhantomData<$name> ),+
     };
     ( @ < $($meta:ident),+ > $name:ident[$type:ty] ) => {
-        //#[derive(Clone, Copy, Debug)] // FIXME: have to derive myself here
+        // Define the sequence trait type
         pub struct $name<$($meta),+>(
            $crate::new_seq_types!( @wrap_phantom@ $($meta),+ )
         );
+        impl< $($meta),+ > Clone for $name< $($meta),+ > {
+            fn clone(&self) -> Self {
+                $name( $( std::marker::PhantomData::<$meta> ),+ )
+            }
+        }
+        impl< $($meta),+ > std::marker::Copy for $name< $($meta),+ > {}
+        impl< $($meta),+ > std::fmt::Debug for $name< $($meta),+ > {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+                write!(f, stringify!($name));
+                Ok(())
+            }
+        }
+        // Implement SeqTrait for all types
         impl< $($meta),+ > $crate::SeqTrait for $name< $($meta),+ > {
             type Type = $type;
         }
@@ -38,12 +51,6 @@ macro_rules! new_seq_types {
     };
 }
 pub(crate) use new_seq_types;
-
-new_seq_types! {
-    Foo[u32],
-    <T> ST[T]
-}
-
 
 #[derive(Debug)]
 #[repr(transparent)] // Because of this we can soundly cast `&{mut }IdxSlice<T>` to `&{mut }[T]`.
@@ -149,6 +156,11 @@ super::def_ops! {
     [Y] - [Y] => [Y];
     [Y] += isize
 }
+new_seq_types! {
+    Foo[u32],
+    <T> ST[T]
+}
+
 impl<T> CanIndexTag<Vec<T>> for X {}
 impl CanIndexTag<[u32]> for X {}
 impl<T> CanIndexTag<ST<T>> for X {}
@@ -174,9 +186,9 @@ fn narko() {
     let v: IdxVec<ST<u32>, u32> = vec![1, 2, 3, 4, 5].into();
     let (i, j): (Val<X>, Val<X>) = (0.into(), 3.into());
     let w = &v[i..j];
-    // FIXME implement Debug for w println!("w = {:?}", &w);
+    println!("w = {:?}", &w);
     println!("v[x] = {}", v[x]);
     println!("w[x] = {}", w[x]);
     // println!("v[y] = {}", v[y]);
-    // assert!(false);
+    assert!(false);
 }
