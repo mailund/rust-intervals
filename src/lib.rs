@@ -20,10 +20,3 @@ use sequences::*;
 
 //mod range;
 //mod rmq;
-
-// FIXME: use index::*;
-// FIXME: use index_macros::*;
-use ops_macros::*;
-use wrapper::*;
-
-fn main() {}

@@ -36,8 +36,7 @@ macro_rules! new_seq_types {
         impl< $($meta),+ > std::marker::Copy for $name< $($meta),+ > {}
         impl< $($meta),+ > std::fmt::Debug for $name< $($meta),+ > {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-                write!(f, stringify!($name));
-                Ok(())
+                write!(f, stringify!($name))
             }
         }
         // Implement SeqTrait for all types
@@ -177,10 +176,7 @@ type_rules! {
         <T> ST[T];
     }
     indices: {
-        X[u32] for
-            [u32],
-            Vec<T> where <T> meta,
-            ST<T> where <T> meta;
+        X[u32] for [u32], Vec<T> where <T> meta, ST<T> where <T> meta;
         Y[i64] for Foo, Vec<T> where <T> meta;
     }
     operations: {
@@ -193,7 +189,7 @@ type_rules! {
 #[test]
 fn test_new_design() {
     let x: Val<X> = Val(0);
-    let y: Val<Y> = Val(64);
+    let _y: Val<Y> = Val(64);
     let z: Val<X> = Val(16);
     //println!("{} < {} == {}", x, y, x < y);
     println!("{} < {} == {}", x, z, x < z);
