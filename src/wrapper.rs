@@ -108,13 +108,24 @@ where
 }
 
 macro_rules! new_types {
-    ($( $name:ident[$type:ty] ),+ ) => {
+    ($(
+        $name:ident[$type:ty]
+        $(for
+            $( $seq:ty $( where < $($meta:ident),+ > meta)? ),+
+        )?
+     ;)+
+    ) => {
         $(
             #[derive(Clone, Copy, Debug)]
             pub struct $name();
             impl $crate::wrapper::TypeTrait for $name {
                 type Type = $type;
             }
+            $(
+                $(
+                    impl$( < $($meta),+ >)? CanIndexTag<$seq> for $name {}
+                )+
+            )?
         )+
     };
 }
