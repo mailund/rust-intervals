@@ -107,6 +107,8 @@ where
     }
 }
 
+#[allow(unused_macros)]
+#[allow(unused_imports)]
 macro_rules! new_index_types {
     ($(
         $name:ident[$type:ty]

@@ -13,6 +13,7 @@ pub trait SeqTrait {
 /// Create a new sequence type. It really only creates a type trait
 /// that we can associate with sequences to control which index types
 /// are allowed to index into which sequence types.
+#[allow(unused_macros)]
 macro_rules! new_seq_types {
     // Basic concrete type
     ( @ $name:ident[$type:ty] ) => {
@@ -53,6 +54,7 @@ macro_rules! new_seq_types {
         $( $crate::new_seq_types!( @ $( < $($meta),+ > )? $name[$type] ); )*
     };
 }
+#[allow(unused_imports)]
 pub(crate) use new_seq_types;
 
 #[derive(Debug)]
@@ -165,6 +167,7 @@ where
 // SECTION: tests
 #[cfg(test)]
 mod test {
+    use crate::*;
     type_rules! {
         sequences: {
             Foo[u32];

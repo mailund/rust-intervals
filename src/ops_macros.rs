@@ -1,4 +1,5 @@
 /// Macro for defining numerical operators on wrapper types.
+#[allow(unused_macros)]
 macro_rules! def_ops {
 
         // [T] is a wrapped type
@@ -58,4 +59,5 @@ macro_rules! def_ops {
         $( $crate::def_ops!( @ $lhs $op $rhs $( => $res )? ); )+
     };
 }
+#[allow(unused_imports)]
 pub(crate) use def_ops;
