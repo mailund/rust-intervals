@@ -20,7 +20,10 @@ mod sequences;
 #[allow(unused_imports)]
 use sequences::*;
 
-//mod range;
+mod range;
+#[allow(unused_imports)]
+use range::*;
+
 //mod rmq;
 
 /// The DSL for specifying types and the legal operations

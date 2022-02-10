@@ -2,13 +2,13 @@
 
 use super::*;
 
-use num::NumCast;
+use num::{Num, NumCast};
 use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::fmt;
 
 /// Implement this to behave like a number
 pub trait NumberType {
-    type Type: NumCast;
+    type Type: Num + NumCast;
     fn value(&self) -> Self::Type;
     #[inline]
     fn value_as<T: NumCast>(&self) -> T {
@@ -39,15 +39,15 @@ macro_rules! def_wrap_primitive {
 def_wrap_primitive!(usize, isize, u128, i128, u64, i64, u32, i32, u16, i16, u8, i8);
 
 /// Trait that must be satisfied for wrapped types.
-pub trait NumType: NumCast + Copy + PartialEq + PartialOrd {}
+pub trait NumType: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {}
 // Hack to make a NumType out of all that satisfy the constraints.
 // This just make NumType a short-hand for the required traits
-impl<T> NumType for T where T: NumCast + Copy + PartialEq + PartialOrd {}
+impl<T> NumType for T where T: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {}
 
 /// This is the trait that defines new types. The wrapper Val handles all
 /// the functionality, but this trait is used as a tag to distinguish
 /// between conceptually different types.
-pub trait TypeTrait {
+pub trait TypeTrait: Clone {
     type Type: NumType;
 }
 
