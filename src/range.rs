@@ -56,6 +56,11 @@ mod experiments {
     );
 }
 
+// Probably don't need the stuff below any more, but leave it here
+// until I am sure
+
+/*
+
 /// Wrapper of Range that we can work with within Rust's type system
 #[derive(Clone, Copy)]
 pub enum Range<Idx> {
@@ -328,4 +333,6 @@ impl Range {
         }
     }
 }
+*/
+
 */

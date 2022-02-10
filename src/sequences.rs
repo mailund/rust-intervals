@@ -6,9 +6,13 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 /// The generic parameter T is a hack so we can work with both
 /// generic and concrete underlying types.
 pub trait SeqTrait {
-    type Type; // The type a sequence is a sequence of
+    /// The type a sequence is a sequence of
+    type Type;
 }
 
+/// Create a new sequence type. It really only creates a type trait
+/// that we can associate with sequences to control which index types
+/// are allowed to index into which sequence types.
 macro_rules! new_seq_types {
     // Basic concrete type
     ( @ $name:ident[$type:ty] ) => {
@@ -158,57 +162,49 @@ where
     }
 }
 
-// SECTION: experiments
-
-macro_rules! type_rules {
-    ( $( $block:ident : { $($ops:tt)* })* ) => {
-        // Dispatching the blocks
-        $( type_rules!(@ $block { $($ops)* }); )*
-    };
-    (@sequences {$($ops:tt)*}) => { new_seq_types!($($ops)*); };
-    (@indices {$($ops:tt)*}) => { new_types!($($ops)*); };
-    (@operations {$($ops:tt)*}) => { def_ops!($($ops)*); };
-}
-
-type_rules! {
-    sequences: {
-        Foo[u32];
-        <T> ST[T];
+// SECTION: tests
+#[cfg(test)]
+mod test {
+    type_rules! {
+        sequences: {
+            Foo[u32];
+            <T> ST[T];
+        }
+        indices: {
+            X[u32] for [u32], Vec<T> where <T> meta, ST<T> where <T> meta;
+            Y[i64] for Foo, Vec<T> where <T> meta;
+        }
+        operations: {
+            [X] + [X] => usize;
+            [Y] - [Y] => [Y];
+            [Y] += isize;
+        }
     }
-    indices: {
-        X[u32] for [u32], Vec<T> where <T> meta, ST<T> where <T> meta;
-        Y[i64] for Foo, Vec<T> where <T> meta;
+
+    #[test]
+    fn test_new_design() {
+        let x: Val<X> = Val(0);
+        let _y: Val<Y> = Val(64);
+        let z: Val<X> = Val(16);
+        //println!("{} < {} == {}", x, y, x < y);
+        println!("{} < {} == {}", x, z, x < z);
+
+        let v: Vec<u32> = vec![1, 2, 3, 4, 5];
+        let w: &[u32] = &v[2..];
+        println!("v[x] = {}", v[x]);
+        println!("w[x] = {}", w[x]);
+        //println!("v[y] = {}", v[y]);
+
+        let v: IdxVec<Foo> = vec![1, 2, 3, 4, 5].into();
+        println!("{:?}", v);
+
+        let v: IdxVec<ST<u32>> = vec![1, 2, 3, 4, 5].into();
+        let (i, j): (Val<X>, Val<X>) = (0.into(), 3.into());
+        let w = &v[i..j];
+        println!("w = {:?}", &w);
+        println!("v[x] = {}", v[x]);
+        println!("w[x] = {}", w[x]);
+        // println!("v[y] = {}", v[y]);
+        //assert!(false);
     }
-    operations: {
-        [X] + [X] => usize;
-        [Y] - [Y] => [Y];
-        [Y] += isize;
-    }
-}
-
-#[test]
-fn test_new_design() {
-    let x: Val<X> = Val(0);
-    let _y: Val<Y> = Val(64);
-    let z: Val<X> = Val(16);
-    //println!("{} < {} == {}", x, y, x < y);
-    println!("{} < {} == {}", x, z, x < z);
-
-    let v: Vec<u32> = vec![1, 2, 3, 4, 5];
-    let w: &[u32] = &v[2..];
-    println!("v[x] = {}", v[x]);
-    println!("w[x] = {}", w[x]);
-    //println!("v[y] = {}", v[y]);
-
-    let v: IdxVec<Foo> = vec![1, 2, 3, 4, 5].into();
-    println!("{:?}", v);
-
-    let v: IdxVec<ST<u32>> = vec![1, 2, 3, 4, 5].into();
-    let (i, j): (Val<X>, Val<X>) = (0.into(), 3.into());
-    let w = &v[i..j];
-    println!("w = {:?}", &w);
-    println!("v[x] = {}", v[x]);
-    println!("w[x] = {}", w[x]);
-    // println!("v[y] = {}", v[y]);
-    //assert!(false);
 }

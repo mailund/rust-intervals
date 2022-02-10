@@ -16,7 +16,17 @@ use index::*;
 mod sequences;
 use sequences::*;
 
-//mod index_macros;
-
 //mod range;
 //mod rmq;
+
+/// The DSL for specifying types and the legal operations
+macro_rules! type_rules {
+    ( $( $block:ident : { $($ops:tt)* })* ) => {
+        // Dispatching the blocks
+        $( $crate::type_rules!(@ $block { $($ops)* }); )*
+    };
+    (@sequences  {$($ops:tt)*}) => { $crate::new_seq_types!($($ops)*); };
+    (@indices    {$($ops:tt)*}) => { $crate::new_index_types!($($ops)*); };
+    (@operations {$($ops:tt)*}) => { $crate::def_ops!($($ops)*); };
+}
+pub(crate) use type_rules;

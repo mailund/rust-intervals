@@ -107,7 +107,7 @@ where
     }
 }
 
-macro_rules! new_types {
+macro_rules! new_index_types {
     ($(
         $name:ident[$type:ty]
         $(for
@@ -129,4 +129,29 @@ macro_rules! new_types {
         )+
     };
 }
-pub(crate) use new_types;
+pub(crate) use new_index_types;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    type_rules! {
+        indices: {
+            I[u32];
+            J[usize];
+        }
+        operations: {
+            [I] - [I] => [J];
+            [J] += usize;
+        }
+    }
+
+    #[test]
+    fn test_creating_types() {
+        let i: Val<I> = 0.into();
+        let j: Val<I> = 10.into();
+        let mut k: Val<J> = 10.into();
+        assert_eq!(k, j - i);
+        k += 5;
+        assert_eq!(k, 15.into());
+    }
+}
