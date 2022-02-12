@@ -12,7 +12,6 @@ mod ops;
 #[allow(unused_imports)]
 use ops::*;
 
-/*
 // Code for treating wrapped objects with indexing
 mod index;
 #[allow(unused_imports)]
@@ -23,10 +22,9 @@ mod sequences;
 #[allow(unused_imports)]
 use sequences::*;
 
+// Handling ranges of new types (with some rust-induced limits)
 mod range;
 #[allow(unused_imports)]
 use range::*;
 
 //mod rmq;
-
-*/

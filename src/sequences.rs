@@ -10,53 +10,7 @@ pub trait SeqTrait {
     type Type;
 }
 
-/// Create a new sequence type. It really only creates a type trait
-/// that we can associate with sequences to control which index types
-/// are allowed to index into which sequence types.
-#[allow(unused_macros)]
-macro_rules! new_seq_types {
-    // Basic concrete type
-    ( @ $name:ident[$type:ty] ) => {
-        #[derive(Clone, Copy, Debug)]
-        pub struct $name();
-        impl $crate::SeqTrait for $name {
-            type Type = $type;
-        }
-    };
-
-    // Generic type
-    ( @wrap_phantom@ $( $name:ident),+ ) => {
-        $( std::marker::PhantomData<$name> ),+
-    };
-    ( @ < $($meta:ident),+ > $name:ident[$type:ty] ) => {
-        // Define the sequence trait type
-        pub struct $name<$($meta),+>(
-           $crate::new_seq_types!( @wrap_phantom@ $($meta),+ )
-        );
-        impl< $($meta),+ > Clone for $name< $($meta),+ > {
-            fn clone(&self) -> Self {
-                $name( $( std::marker::PhantomData::<$meta> ),+ )
-            }
-        }
-        impl< $($meta),+ > std::marker::Copy for $name< $($meta),+ > {}
-        impl< $($meta),+ > std::fmt::Debug for $name< $($meta),+ > {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-                write!(f, stringify!($name))
-            }
-        }
-        // Implement SeqTrait for all types
-        impl< $($meta),+ > $crate::SeqTrait for $name< $($meta),+ > {
-            type Type = $type;
-        }
-    };
-
-    ($( $( < $($meta:ident),+ > )? $name:ident[$type:ty] ;)+ ) => {
-        $( $crate::new_seq_types!( @ $( < $($meta),+ > )? $name[$type] ); )*
-    };
-}
-#[allow(unused_imports)]
-pub(crate) use new_seq_types;
-
+// SECTION: Slices -- the fundamental type here
 #[derive(Debug)]
 #[repr(transparent)] // Because of this we can soundly cast `&{mut }IdxSlice<T>` to `&{mut }[T]`.
 pub struct IdxSlice<_Tag: SeqTrait>([_Tag::Type]);
@@ -81,125 +35,117 @@ where
 impl<Idx, _Tag> Index<Idx> for IdxSlice<_Tag>
 where
     _Tag: SeqTrait,
-    Idx: NumberType,
-    Idx: CanIndexTag<_Tag>,
+    Idx: IndexType,
+    Idx: CanIndex<_Tag>,
 {
     type Output = _Tag::Type;
     fn index(&self, idx: Idx) -> &Self::Output {
-        &self.0[idx.value_as::<usize>()]
+        &self.0[idx.index()]
     }
 }
 impl<Idx, _Tag> IndexMut<Idx> for IdxSlice<_Tag>
 where
     _Tag: SeqTrait,
-    Idx: NumberType,
-    Idx: CanIndexTag<_Tag>,
+    Idx: IndexType,
+    Idx: CanIndex<_Tag>,
 {
     fn index_mut(&mut self, idx: Idx) -> &mut Self::Output {
-        &mut self.0[idx.value_as::<usize>()]
+        &mut self.0[idx.index()]
     }
 }
 
-#[rustfmt::skip]
 impl<Idx, _Tag> Index<Range<Idx>> for IdxSlice<_Tag>
 where
     _Tag: SeqTrait,
-    Idx: NumberType,
-    Idx: CanIndexTag<_Tag>,
+    Idx: IndexType,
+    Idx: CanIndex<_Tag>,
 {
     type Output = IdxSlice<_Tag>;
     fn index(&self, idx: Range<Idx>) -> &Self::Output {
-        self.0[
-            idx.start.value_as::<usize>()
-            ..
-            idx.end.value_as::<usize>()
-        ].into()
+        self.0[idx.start.index()..idx.end.index()].into()
     }
 }
 
-#[rustfmt::skip]
 impl<Idx, _Tag> IndexMut<Range<Idx>> for IdxSlice<_Tag>
 where
     _Tag: SeqTrait,
-    Idx: NumberType,
-    Idx: CanIndexTag<_Tag>,
+    Idx: IndexType,
+    Idx: CanIndex<_Tag>,
 {
     fn index_mut(&mut self, idx: Range<Idx>) -> &mut Self::Output {
-        (&mut self.0[
-            idx.start.value_as::<usize>()
-            ..
-            idx.end.value_as::<usize>()
-        ]).into()
+        (&mut self.0[idx.start.index()..idx.end.index()]).into()
     }
 }
 // FIXME: And so on, for all range types...
 
+// SECTION: Other sequence types
 #[derive(Debug)]
 pub struct IdxVec<_Tag: SeqTrait>(pub Vec<_Tag::Type>);
-
-impl<_Tag> From<Vec<_Tag::Type>> for IdxVec<_Tag>
-where
-    _Tag: SeqTrait,
-{
+impl<_Tag: SeqTrait> From<Vec<_Tag::Type>> for IdxVec<_Tag> {
     fn from(v: Vec<_Tag::Type>) -> IdxVec<_Tag> {
         IdxVec::<_Tag>(v)
     }
 }
-
-impl<_Tag> Deref for IdxVec<_Tag>
-where
-    _Tag: SeqTrait,
-{
+impl<_Tag: SeqTrait> Deref for IdxVec<_Tag> {
     type Target = IdxSlice<_Tag>;
     fn deref(&self) -> &Self::Target {
         self.0.as_slice().into()
     }
 }
-impl<_Tag> DerefMut for IdxVec<_Tag>
-where
-    _Tag: SeqTrait,
-{
+impl<_Tag: SeqTrait> DerefMut for IdxVec<_Tag> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.as_mut_slice().into()
     }
 }
 
+// FIXME: other containers
+
 // SECTION: tests
 #[cfg(test)]
 mod test {
     use crate::*;
-    type_rules! {
-        sequences: {
-            Foo[u32];
-            <T> ST[T];
-        }
-        indices: {
-            X[u32] for [u32], Vec<T> where <T> meta, ST<T> where <T> meta;
-            Y[i64] for Foo, Vec<T> where <T> meta;
-        }
-        operations: {
-            [X] + [X] => usize;
-            [Y] - [Y] => [Y];
-            [Y] += isize;
-        }
+
+    #[rustfmt::skip]
+    mod types {
+        use crate::*;
+        use std::marker::PhantomData;
+
+        #[derive(Clone, Copy, Debug)]
+        pub struct Foo();
+        impl SeqTrait for Foo { type Type = u32; }
+        #[derive(Clone, Copy, Debug)]
+        pub struct ST<T>(PhantomData<T>);
+        impl<T> SeqTrait for ST<T> { type Type = T; }
+
+        #[derive(Clone, Copy)]
+        pub struct X{}
+        impl TypeTrait for X { type Type = u32; }
+        impl<T> CanIndex<Vec<T>> for X {}
+        impl<T> CanIndex<[T]> for X {}
+        impl<T> CanIndex<ST<T>> for X {}
+
+        #[derive(Clone, Copy)]
+        pub struct Y{}
+        impl TypeTrait for Y { type Type = i64; }
+        impl CanIndex<Foo> for Y {}
+        impl<T> CanIndex<Vec<T>> for Y {}
     }
+    use types::*;
 
     #[test]
     fn test_new_design() {
         let x: Val<X> = Val(0);
-        let _y: Val<Y> = Val(64);
-        let z: Val<X> = Val(16);
-        //println!("{} < {} == {}", x, y, x < y);
-        println!("{} < {} == {}", x, z, x < z);
-
+        let y: Val<Y> = Val(0);
         let v: Vec<u32> = vec![1, 2, 3, 4, 5];
         let w: &[u32] = &v[2..];
         println!("v[x] = {}", v[x]);
         println!("w[x] = {}", w[x]);
-        //println!("v[y] = {}", v[y]);
+        println!("v[y] = {}", v[y]);
 
         let v: IdxVec<Foo> = vec![1, 2, 3, 4, 5].into();
         println!("{:?}", v);
+        //println!("{:?}", v[x]);
+        println!("{:?}", v[y]);
 
         let v: IdxVec<ST<u32>> = vec![1, 2, 3, 4, 5].into();
         let (i, j): (Val<X>, Val<X>) = (0.into(), 3.into());
@@ -208,6 +154,7 @@ mod test {
         println!("v[x] = {}", v[x]);
         println!("w[x] = {}", w[x]);
         // println!("v[y] = {}", v[y]);
+
         //assert!(false);
     }
 }

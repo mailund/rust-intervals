@@ -3,11 +3,12 @@
 use super::macros::*;
 use num::{cast, Num, NumCast};
 use std::cmp::{Ordering, PartialEq, PartialOrd};
+use std::convert::From;
 use std::fmt;
 
 /// Trait that must be satisfied for wrapped types.
 pub trait NumType: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {
-    /// Casting from one NumType to another
+    /// Casting from one NumType to another. Panics if the cast isn't possible.
     #[rustfmt::skip]
     fn cast<T: NumType>(self) -> T { cast::<Self, T>(self).unwrap() }
 }
@@ -39,32 +40,33 @@ impl<_Tag: TypeTrait> TypeTrait for Val<_Tag> {
 }
 
 // Type dispatch for casting. FIXME: must be a simple way
-pub trait CastTo {
-    // FIXME: not sure this should be public
-    type Type: NumType;
-    fn make(val: Self::Type) -> Self;
-}
-impl<T: NumType> CastTo for T {
-    type Type = T;
-    fn make(val: Self::Type) -> Self {
-        val
+#[rustfmt::skip]
+mod val_casting {
+    use super::*;
+    pub trait WrapperTrait {
+        type InType: NumType;
+        fn wrap(val: Self::InType) -> Self;
+    }
+    impl<T: NumType> WrapperTrait for T {
+        type InType = T;
+        fn wrap(val: Self::InType) -> Self { val }
+    }
+    impl<_Tag: TypeTrait> WrapperTrait for Val<_Tag> {
+        type InType = _Tag::Type;
+        fn wrap(val: Self::InType) -> Self { Val::<_Tag>(val) }
     }
 }
-impl<_Tag: TypeTrait> CastTo for Val<_Tag> {
-    type Type = _Tag::Type;
-    fn make(val: Self::Type) -> Self {
-        Val::<_Tag>(val)
-    }
-}
+use val_casting::*;
 
 impl<_Tag> Val<_Tag>
 where
     _Tag: TypeTrait,
 {
     #[allow(dead_code)]
-    #[rustfmt::skip]
     #[inline]
-    pub fn cast<T: CastTo>(self) -> T { T::make(self.0.cast()) }
+    pub fn cast<W: WrapperTrait>(self) -> W {
+        W::wrap(self.0.cast::<W::InType>())
+    }
 }
 
 impl<_Tag> fmt::Display for Val<_Tag>
@@ -82,9 +84,15 @@ impl<_Tag, T: NumCast> From<T> for Val<_Tag>
 where
     _Tag: TypeTrait,
 {
-    #[rustfmt::skip]
+    // FIXME: This panics if you cannot cast the input value. The TryFrom trait seems better
+    // but I cannot convince Rust to let me implement it. It says that Into is already implemented
+    // (behind my back, I might add), so there already is a TryFrom. Fuck it. Just don't make
+    // Val values with overflow if you want to survive.
     #[inline]
-    fn from(t: T) -> Self { Val(cast::<T, _Tag::Type>(t).unwrap()) }
+    fn from(t: T) -> Self {
+        let val = cast::<T, _Tag::Type>(t).unwrap();
+        Val(val)
+    }
 }
 
 // Get an ordering on it

@@ -98,21 +98,6 @@ mod generated_ops {
     }
 }
 
-// FIXME: move somewhere else
-use std::ops::Index;
-// Generic index implementation. (The real situation is a bit more
-// complicated because I need to specify which types each index type
-// is allowed to index, but this is the gist of it)
-impl<_Tag, T> Index<Val<_Tag>> for Vec<T>
-where
-    _Tag: TypeTrait<Type = usize>, // only for usize to simplify the example
-{
-    type Output = T;
-    fn index(&self, i: Val<_Tag>) -> &Self::Output {
-        &self[i.0] // hardwired cast for example purposes
-    }
-}
-
 #[cfg(test)]
 mod test_ops {
     use super::*;
@@ -144,7 +129,6 @@ mod test_ops {
 
     #[test]
     fn test_ops() {
-        let v: Vec<u32> = vec![1, 2, 3, 4, 5];
         let i: Val<T1> = 1.into();
         let j: Val<T2> = 3.into();
 
@@ -159,18 +143,11 @@ mod test_ops {
         println!("{}", ij);
         let jj: usize = j + j;
         println!("{}", jj);
-        /* We haven't defined T2 + T1, so this isn't possible
-        let ji = j + i;
-        println!("{}", ji);
-        */
-
         let _: usize = j + 12u32;
         let _: usize = 12u32 + j;
 
         let _: Val<T2> = i - 12i32;
         let _: Val<T2> = 12i32 - i;
-
-        println!("{}", v[i]);
 
         let _: Val<T2> = 42i32.into();
         let _: Val<T2> = j * 2i32;
