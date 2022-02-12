@@ -82,9 +82,9 @@ mod generated_ops {
         };
     }
     mod base_macros {
-        use super::*;
-
         use crate::macros::{apply_base_types, apply_macro};
+        use crate::ops::ops_traits::*;
+        use crate::{TypeTrait, Val};
         use std::ops::{Add, Div, Mul, Sub};
         macro_rules! add_base  { ($t:ty) => { base_op!(Add, add, CanAdd, +, $t); }; }
         macro_rules! sub_base  { ($t:ty) => { base_op!(Sub, sub, CanSub, -, $t); }; }
@@ -96,7 +96,6 @@ mod generated_ops {
         }
         apply_macro!(gen_bases [add_base, sub_base, mul_base, div_base]);
     }
-    use base_macros::*;
 }
 
 // FIXME: move somewhere else
@@ -125,18 +124,21 @@ mod test_ops {
     
         #[derive(Clone, Copy)]
         pub struct T1 {}
-        impl TypeTrait  for T1 { type Type = usize;  }
-        impl CanAdd<T1> for T1 { type Res = Val<T1>; } // T1 + T1 => T1
-        impl CanAdd<T2> for T1 { type Res = Val<T2>; } // T1 + T2 => T2
-        impl CanSub<T1> for T1 { type Res = Val<T2>; } // T1 - T1 => T2
+        impl TypeTrait   for T1  { type Type = usize;  }
+        impl CanAdd<T1>  for T1  { type Res = Val<T1>; } // T1 + T1 => T1
+        impl CanAdd<T2>  for T1  { type Res = Val<T2>; } // T1 + T2 => T2
+        impl CanSub<T1>  for T1  { type Res = Val<T2>; } // T1 - T1 => T2
+        impl CanSub<i32> for T1  { type Res = Val<T2>; } // T1 - i32 => T2
+        impl CanSub<T1>  for i32 { type Res = Val<T2>; } // i32 - T1 => T2
 
         #[derive(Clone, Copy)]
         pub struct T2 {}
-        impl TypeTrait   for T2  { type Type = usize; }
-        impl CanAdd<T2>  for T2  { type Res  = usize; } // T2 + T2 => usize
-        impl CanAdd<u32> for T2  { type Res  = usize; } // T2 + u32 => usize
-        impl CanAdd<T2>  for u32 { type Res  = usize; } // u32 + T2 => usize
-        impl CanMul<i32> for T2  { type Res  = T2;    } // u32 * T2 => T2
+        impl TypeTrait   for T2  { type Type = isize;   }
+        impl CanAdd<T2>  for T2  { type Res  = usize;   } // T2 + T2 => usize
+        impl CanAdd<u32> for T2  { type Res  = usize;   } // T2 + u32 => usize
+        impl CanAdd<T2>  for u32 { type Res  = usize;   } // u32 + T2 => usize
+        impl CanMul<i32> for T2  { type Res  = Val<T2>; } // T2 * i32 => T2
+        impl CanMul<T2>  for i32 { type Res  = Val<T2>; } // i32 * T2 => T2
     }
     use types::{T1, T2};
 
@@ -162,77 +164,16 @@ mod test_ops {
         println!("{}", ji);
         */
 
-        let _ = j + 12u32;
-        let _ = 12u32 + j;
+        let _: usize = j + 12u32;
+        let _: usize = 12u32 + j;
+
+        let _: Val<T2> = i - 12i32;
+        let _: Val<T2> = 12i32 - i;
 
         println!("{}", v[i]);
 
-        let _: Val<T2> = 2 * (j.cast() - i);
+        let _: Val<T2> = 42i32.into();
+        let _: Val<T2> = j * 2i32;
+        let _: Val<T2> = 2i32 * j;
     }
 }
-
-/*
-/// Macro for defining numerical operators on wrapper types.
-#[allow(unused_macros)]
-macro_rules! def_ops {
-
-        // [T] is a wrapped type
-        ( @ wrap [$id:ident] ) => { Val<$id> };
-        // raw identifier is just kept as it is
-        ( @ wrap $id:ident) => { $id };
-
-        // lhs + rhs => res
-        ( @ $lhs:tt + $rhs:tt => $res:tt ) => {
-            impl std::ops::Add<$crate::def_ops!(@ wrap $rhs)>
-                for $crate::def_ops!(@ wrap$lhs)
-            {
-                type Output = $crate::def_ops!(@ wrap$res);
-                #[inline]
-                fn add(self, rhs: $crate::def_ops!(@ wrap $rhs)) -> Self::Output {
-                    let lhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
-                        $crate::wrapper::NumberType::value_as(&self);
-                    let rhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
-                        $crate::wrapper::NumberType::value_as(&rhs);
-                    (lhs + rhs).into()
-                }
-            }
-        };
-
-        // lhs += rhs
-        ( @ $lhs:tt += $rhs:tt ) => {
-        impl std::ops::AddAssign<$crate::def_ops!(@ wrap $rhs)>
-            for $crate::def_ops!(@ wrap$lhs)
-        {
-            #[inline]
-            fn add_assign(&mut self, rhs: $crate::def_ops!(@ wrap $rhs)) {
-                let rhs: <$crate::def_ops!(@ wrap $lhs) as $crate::wrapper::NumberType>::Type =
-                    $crate::wrapper::NumberType::value_as(&rhs);
-                self.0 += rhs;
-            }
-        }
-    };
-
-    // lhs - rhs => res
-    ( @ $lhs:tt - $rhs:tt => $res:tt ) => {
-        impl std::ops::Sub<$crate::def_ops!(@ wrap $rhs)> for $crate::def_ops!(@ wrap $lhs)
-        {
-            type Output = $crate::def_ops!(@ wrap $res);
-            #[inline]
-            fn sub(self, rhs: $crate::def_ops!(@ wrap $rhs)) -> Self::Output {
-                let lhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
-                    $crate::wrapper::NumberType::value_as(&self);
-                let rhs: <$crate::def_ops!(@ wrap $res) as $crate::wrapper::NumberType>::Type =
-                    $crate::wrapper::NumberType::value_as(&rhs);
-                (lhs - rhs).into()
-            }
-        }
-    };
-
-
-    ( $( $lhs:tt $op:tt $rhs:tt $( => $res:tt  )? ;)+ ) => {
-        $( $crate::def_ops!( @ $lhs $op $rhs $( => $res )? ); )+
-    };
-}
-#[allow(unused_imports)]
-pub(crate) use def_ops;
-*/
