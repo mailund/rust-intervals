@@ -1,7 +1,8 @@
 // helper macros
-#[rustfmt::skip]
 macro_rules! apply_macro {
-    ($macro:ident [ $($args:tt),* ]) => { $( $macro!($args); )* };
+    ($macro:ident [ $($args:tt),* ]) => {
+        $( $macro!($args); )*
+    };
 }
 macro_rules! apply_base_types {
     ($macro:ident) => {

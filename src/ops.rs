@@ -1,79 +1,106 @@
-use super::macros::*;
 use crate::*;
-
-use num::cast;
-use std::ops::{Add, Index};
 
 #[rustfmt::skip]
 mod ops_traits {
     pub trait CanAdd<Rhs> { type Res; } // self + Rhs => Res
+    pub trait CanSub<Rhs> { type Res; } // self - Rhs => Res
+    pub trait CanMul<Rhs> { type Res; } // self * Rhs => Res
+    pub trait CanDiv<Rhs> { type Res; } // self / Rhs => Res
 }
 use ops_traits::*;
 
 mod generated_ops {
-    use super::*;
-    // Generic + that should be constrained based on traits
+    use std::ops::{Add, Div, Mul, Sub};
 
+    use super::*;
     // Generic on wrapped operands
-    impl<Rhs, Lhs> Add<Val<Rhs>> for Val<Lhs>
-    where
-        Rhs: TypeTrait,
-        Lhs: TypeTrait,
-        Lhs: CanAdd<Rhs>,
-        <Lhs as CanAdd<Rhs>>::Res: TypeTrait,
-        <Lhs as CanAdd<Rhs>>::Res: From<<<Lhs as CanAdd<Rhs>>::Res as TypeTrait>::Type>,
-    {
-        type Output = <Lhs as CanAdd<Rhs>>::Res;
-        fn add(self, rhs: Val<Rhs>) -> Self::Output {
-            let lhs = cast::<<Lhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(self.0)
-                .unwrap();
-            let rhs =
-                cast::<<Rhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(rhs.0).unwrap();
-            (lhs + rhs).into()
-        }
+    macro_rules! gen_generic_op {
+        ($Trait:ident, $method:ident, $condition:ident, $op:tt) => {
+            impl<Rhs, Lhs> $Trait<Val<Rhs>> for Val<Lhs>
+            where
+                Rhs: TypeTrait,
+                Lhs: TypeTrait,
+                Lhs: $condition<Rhs>,
+                <Lhs as $condition<Rhs>>::Res: TypeTrait,
+                <Lhs as $condition<Rhs>>::Res: From<<<Lhs as $condition<Rhs>>::Res as TypeTrait>::Type>,
+            {
+                type Output = <Lhs as $condition<Rhs>>::Res;
+                fn $method(self, rhs: Val<Rhs>) -> Self::Output {
+                    let lhs =
+                        num::cast::<<Lhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(self.0)
+                            .unwrap();
+                    let rhs =
+                        num::cast::<<Rhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(rhs.0)
+                            .unwrap();
+                    (lhs $op rhs).into()
+                }
+            }
+        };
     }
+    gen_generic_op!(Add, add, CanAdd, +);
+    gen_generic_op!(Sub, sub, CanSub, -);
+    gen_generic_op!(Mul, mul, CanMul, *);
+    gen_generic_op!(Div, div, CanDiv, -);
 
     // base types. We have to generate these with macros since the orphan rule
     // won't let us do it with generics.
     macro_rules! base_op {
-        ($($t: ty),+) => {
-            $(
-                impl<Lhs> Add<$t> for Val<Lhs>
-                where
-                    Lhs: TypeTrait,
-                    Lhs: CanAdd<$t>,
-                    <Lhs as CanAdd<$t>>::Res: TypeTrait,
-                    <Lhs as CanAdd<$t>>::Res: From<<<Lhs as CanAdd<$t>>::Res as TypeTrait>::Type>,
-                {
-                    type Output = <Lhs as CanAdd<$t>>::Res;
-                    fn add(self, rhs: $t) -> Self::Output {
-                        let lhs = cast::<<Lhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(self.0).unwrap();
-                        let rhs = cast::<$t, <Self::Output as TypeTrait>::Type>(rhs).unwrap();
-                        (lhs + rhs).into()
-                    }
+        ($Trait:ident, $method:ident, $condition:ident, $op:tt, $t:ty) => {
+            impl<Lhs> $Trait<$t> for Val<Lhs>
+            where
+                Lhs: TypeTrait,
+                Lhs: $condition<$t>,
+                <Lhs as $condition<$t>>::Res: TypeTrait,
+                <Lhs as $condition<$t>>::Res: From<<<Lhs as $condition<$t>>::Res as TypeTrait>::Type>,
+            {
+                type Output = <Lhs as $condition<$t>>::Res;
+                fn $method(self, rhs: $t) -> Self::Output {
+                    let lhs =
+                        num::cast::<<Lhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(self.0)
+                            .unwrap();
+                    let rhs = num::cast::<$t, <Self::Output as TypeTrait>::Type>(rhs).unwrap();
+                    (lhs + rhs).into()
                 }
-
-                impl<Rhs> Add<Val<Rhs>> for $t
-                where
-                    Rhs: TypeTrait,
-                    Self: TypeTrait,
-                    Self: CanAdd<Rhs>,
-                    <Self as CanAdd<Rhs>>::Res: TypeTrait,
-                    <Self as CanAdd<Rhs>>::Res: From<<<Self as CanAdd<Rhs>>::Res as TypeTrait>::Type>,
-                {
-                    type Output = <Self as CanAdd<Rhs>>::Res;
-                    fn add(self, rhs: Val<Rhs>) -> Self::Output {
-                        let lhs = cast::<$t, <Self::Output as TypeTrait>::Type>(self).unwrap();
-                        let rhs = cast::<<Rhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(rhs.0).unwrap();
-                        (lhs + rhs).into()
-                    }
+            }
+            impl<Rhs> $Trait<Val<Rhs>> for $t
+            where
+                Rhs: TypeTrait,
+                Self: TypeTrait,
+                Self: $condition<Rhs>,
+                <Self as $condition<Rhs>>::Res: TypeTrait,
+                <Self as $condition<Rhs>>::Res: From<<<Self as $condition<Rhs>>::Res as TypeTrait>::Type>,
+            {
+                type Output = <Self as $condition<Rhs>>::Res;
+                fn $method(self, rhs: Val<Rhs>) -> Self::Output {
+                    let lhs = num::cast::<$t, <Self::Output as TypeTrait>::Type>(self).unwrap();
+                    let rhs =
+                        num::cast::<<Rhs as TypeTrait>::Type, <Self::Output as TypeTrait>::Type>(rhs.0)
+                            .unwrap();
+                    (lhs $op rhs).into()
                 }
-            )+
+            }
         };
     }
-    apply_base_types!(base_op);
+    mod base_macros {
+        use super::*;
+
+        use crate::macros::{apply_base_types, apply_macro};
+        use std::ops::{Add, Div, Mul, Sub};
+        macro_rules! add_base  { ($t:ty) => { base_op!(Add, add, CanAdd, +, $t); }; }
+        macro_rules! sub_base  { ($t:ty) => { base_op!(Sub, sub, CanSub, -, $t); }; }
+        macro_rules! mul_base  { ($t:ty) => { base_op!(Mul, mul, CanMul, *, $t); }; }
+        macro_rules! div_base  { ($t:ty) => { base_op!(Div, div, CanDiv, /, $t); }; }
+        #[rustfmt::skip]
+        macro_rules! gen_bases {
+            ($op:ident) => { apply_base_types!($op); };
+        }
+        apply_macro!(gen_bases [add_base, sub_base, mul_base, div_base]);
+    }
+    use base_macros::*;
 }
 
+// FIXME: move somewhere else
+use std::ops::Index;
 // Generic index implementation. (The real situation is a bit more
 // complicated because I need to specify which types each index type
 // is allowed to index, but this is the gist of it)
@@ -98,16 +125,18 @@ mod test_ops {
     
         #[derive(Clone, Copy)]
         pub struct T1 {}
-        impl TypeTrait  for T1 { type Type = usize;      }
+        impl TypeTrait  for T1 { type Type = usize;  }
         impl CanAdd<T1> for T1 { type Res = Val<T1>; } // T1 + T1 => T1
         impl CanAdd<T2> for T1 { type Res = Val<T2>; } // T1 + T2 => T2
+        impl CanSub<T1> for T1 { type Res = Val<T2>; } // T1 - T1 => T2
 
         #[derive(Clone, Copy)]
         pub struct T2 {}
         impl TypeTrait   for T2  { type Type = usize; }
-        impl CanAdd<T2>  for T2  { type Res = usize;  } // T2 + T2 => usize
-        impl CanAdd<u32> for T2  { type Res = usize;  } // T2 + u32 => usize
-        impl CanAdd<T2>  for u32 { type Res = usize;  } // u32 + u32 => usize
+        impl CanAdd<T2>  for T2  { type Res  = usize; } // T2 + T2 => usize
+        impl CanAdd<u32> for T2  { type Res  = usize; } // T2 + u32 => usize
+        impl CanAdd<T2>  for u32 { type Res  = usize; } // u32 + T2 => usize
+        impl CanMul<i32> for T2  { type Res  = T2;    } // u32 * T2 => T2
     }
     use types::{T1, T2};
 
@@ -137,6 +166,8 @@ mod test_ops {
         let _ = 12u32 + j;
 
         println!("{}", v[i]);
+
+        let _: Val<T2> = 2 * (j.cast() - i);
     }
 }
 
