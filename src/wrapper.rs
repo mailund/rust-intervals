@@ -1,60 +1,71 @@
 // SECTION: Traits for keeping track of types and type information
 
-use super::*;
-
-use num::{Num, NumCast};
+use super::macros::*;
+use num::{cast, Num, NumCast};
 use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::fmt;
 
-/// Implement this to behave like a number
-pub trait NumberType {
-    type Type: Num + NumCast;
-    fn value(&self) -> Self::Type;
-    #[inline]
-    fn value_as<T: NumCast>(&self) -> T {
-        num::cast::<Self::Type, T>(self.value()).unwrap()
-    }
-}
-
-// IntegerType for primitive types; we will wrap those for specific
-// type-safe types. Having the traits for all numbers makes meta-programming
-// a lot easier. Numerical types just wrap themselves.
-// It would be nicer to implement this as generics but num::PrimInt can be
-// extended, so that limits what we are allowed to implement of generics
-// based on these traits.
-macro_rules! def_wrap_primitive {
-    ($($t:ty),*) => {
-        $(
-            impl NumberType for $t
-            {
-                type Type = $t;
-                #[inline]
-                fn value(&self) -> Self::Type {
-                    *self
-                }
-            }
-        )*
-    };
-}
-def_wrap_primitive!(usize, isize, u128, i128, u64, i64, u32, i32, u16, i16, u8, i8);
-
 /// Trait that must be satisfied for wrapped types.
-pub trait NumType: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {}
-// Hack to make a NumType out of all that satisfy the constraints.
+pub trait NumType: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {
+    /// Casting from one NumType to another
+    #[rustfmt::skip]
+    fn cast<T: NumType>(self) -> T { cast::<Self, T>(self).unwrap() }
+}
+
+// NumType is implemented by all types all that satisfy the constraints.
 // This just make NumType a short-hand for the required traits
 impl<T> NumType for T where T: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {}
 
 /// This is the trait that defines new types. The wrapper Val handles all
 /// the functionality, but this trait is used as a tag to distinguish
 /// between conceptually different types.
-pub trait TypeTrait: Clone {
-    type Type: NumType;
+#[rustfmt::skip]
+pub trait TypeTrait: Clone { type Type: NumType; }
+
+// The primitive types should also be type traits...
+#[rustfmt::skip]
+macro_rules! base_trait {
+    ( $t:ty ) => { impl TypeTrait for $t { type Type = $t; }  };
+}
+apply_base_types!(base_trait);
+
+/// Wrapper type.
+#[derive(Clone, Copy, Debug)]
+pub struct Val<_Tag: TypeTrait>(pub _Tag::Type);
+
+// Expose the type trait directly from the Val wrapper
+impl<_Tag: TypeTrait> TypeTrait for Val<_Tag> {
+    type Type = _Tag::Type;
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Val<_Tag>(pub _Tag::Type)
+// Type dispatch for casting. FIXME: must be a simple way
+pub trait CastTo {
+    // FIXME: not sure this should be public
+    type Type: NumType;
+    fn make(val: Self::Type) -> Self;
+}
+impl<T: NumType> CastTo for T {
+    type Type = T;
+    fn make(val: Self::Type) -> Self {
+        val
+    }
+}
+impl<_Tag: TypeTrait> CastTo for Val<_Tag> {
+    type Type = _Tag::Type;
+    fn make(val: Self::Type) -> Self {
+        Val::<_Tag>(val)
+    }
+}
+
+impl<_Tag> Val<_Tag>
 where
-    _Tag: TypeTrait;
+    _Tag: TypeTrait,
+{
+    #[allow(dead_code)]
+    #[rustfmt::skip]
+    #[inline]
+    pub fn cast<T: CastTo>(self) -> T { T::make(self.0.cast()) }
+}
 
 impl<_Tag> fmt::Display for Val<_Tag>
 where
@@ -67,14 +78,13 @@ where
 }
 
 // Implementing From just to make it easier to create objects
-impl<_Tag, T> From<T> for Val<_Tag>
+impl<_Tag, T: NumCast> From<T> for Val<_Tag>
 where
     _Tag: TypeTrait,
-    T: NumCast,
 {
-    fn from(t: T) -> Self {
-        Val(num::cast::<T, _Tag::Type>(t).unwrap())
-    }
+    #[rustfmt::skip]
+    #[inline]
+    fn from(t: T) -> Self { Val(cast::<T, _Tag::Type>(t).unwrap()) }
 }
 
 // Get an ordering on it
@@ -82,10 +92,9 @@ impl<_Tag> PartialEq for Val<_Tag>
 where
     _Tag: TypeTrait,
 {
+    #[rustfmt::skip]
     #[inline]
-    fn eq(&self, other: &Val<_Tag>) -> bool {
-        self.0 == other.0
-    }
+    fn eq(&self, other: &Val<_Tag>) -> bool { self.0 == other.0 }
 }
 impl<_Tag> PartialOrd for Val<_Tag>
 where
@@ -97,63 +106,32 @@ where
     }
 }
 
-impl<_Tag> NumberType for Val<_Tag>
-where
-    _Tag: TypeTrait,
-{
-    type Type = _Tag::Type;
-    fn value(&self) -> Self::Type {
-        self.0
-    }
-}
-
-#[allow(unused_macros)]
-#[allow(unused_imports)]
-macro_rules! new_index_types {
-    ($(
-        $name:ident[$type:ty]
-        $(for
-            $( $seq:ty $( where < $($meta:ident),+ > meta)? ),+
-        )?
-     ;)+
-    ) => {
-        $(
-            #[derive(Clone, Copy, Debug)]
-            pub struct $name();
-            impl $crate::wrapper::TypeTrait for $name {
-                type Type = $type;
-            }
-            $(
-                $(
-                    impl$( < $($meta),+ >)? CanIndexTag<$seq> for $name {}
-                )+
-            )?
-        )+
-    };
-}
-pub(crate) use new_index_types;
-
 #[cfg(test)]
 mod test {
+    #[warn(unused_imports)]
     use super::*;
-    type_rules! {
-        indices: {
-            I[u32];
-            J[usize];
-        }
-        operations: {
-            [I] - [I] => [J];
-            [J] += usize;
-        }
+
+    #[rustfmt::skip]
+    mod new_types {
+        use crate::TypeTrait;
+
+        #[derive(Clone, Copy)]
+        pub struct I {}
+        impl TypeTrait for I { type Type = usize; }
+
+        #[derive(Clone, Copy)]
+        pub struct J {}
+        impl TypeTrait for J { type Type = i32; }
     }
+    use new_types::*;
 
     #[test]
     fn test_creating_types() {
         let i: Val<I> = 0.into();
         let j: Val<I> = 10.into();
-        let mut k: Val<J> = 10.into();
-        assert_eq!(k, j - i);
-        k += 5;
-        assert_eq!(k, 15.into());
+        let k: Val<J> = 10.into();
+        assert_eq!(k.cast::<usize>(), j.0 - i.0);
+        let _: usize = i.cast();
+        let _: Val<J> = i.cast();
     }
 }
