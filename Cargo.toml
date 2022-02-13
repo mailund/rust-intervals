@@ -1,8 +1,7 @@
-[package]
-name = "intervals"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-num = "0.4.0"
-more-asserts = "0.2.2"
+members = [
+    "idx",
+    "idx-dsl", 
+    "idx-dsl-test",
+]

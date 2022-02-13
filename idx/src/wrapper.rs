@@ -6,16 +6,16 @@ use std::cmp::{Ordering, PartialEq, PartialOrd};
 use std::convert::From;
 use std::fmt;
 
+
 /// Trait that must be satisfied for wrapped types.
 pub trait NumType: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {
-    /// Casting from one NumType to another. Panics if the cast isn't possible.
-    #[rustfmt::skip]
     fn cast<T: NumType>(self) -> T { cast::<Self, T>(self).unwrap() }
 }
 
 // NumType is implemented by all types all that satisfy the constraints.
 // This just make NumType a short-hand for the required traits
 impl<T> NumType for T where T: Num + NumCast + Clone + Copy + PartialEq + PartialOrd {}
+
 
 /// This is the trait that defines new types. The wrapper Val handles all
 /// the functionality, but this trait is used as a tag to distinguish

@@ -24,10 +24,10 @@ mod index_type {
         fn index(self) -> usize;
     }
     impl<T: NumType + private::Seal> IndexType for T {
-        fn index(self) -> usize { self.cast() }
+        #[inline] fn index(self) -> usize { self.cast() }
     }
     impl<_Tag: TypeTrait> IndexType for Val<_Tag> {
-        fn index(self) -> usize { self.cast() }
+        #[inline] fn index(self) -> usize { self.cast() }
     }
 }
 pub use index_type::IndexType;
@@ -42,6 +42,7 @@ where
     _Tag: TypeTrait,
     _Tag: CanIndex<T>,
 {
+    // No implementation, this is just a type thing
 }
 
 // SECTION Indexing Rust sequences with Val index.
@@ -79,7 +80,7 @@ where
     type Output = T;
     #[inline]
     fn index(&self, i: Val<_Tag>) -> &Self::Output {
-        &self[i.cast::<usize>()/*i.index()*/]
+        &self[i.index()]
     }
 }
 

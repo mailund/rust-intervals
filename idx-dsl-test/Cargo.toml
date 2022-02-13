@@ -1,0 +1,9 @@
+[package]
+name = "idx-dsl-test"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+idx = { path = "../idx" }
+idx-dsl = { path = "../idx-dsl" }
