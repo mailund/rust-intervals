@@ -5,5 +5,5 @@ edition = "2021"
 
 
 [dependencies]
-idx = { path = "../idx" }
+idx-types = { path = "../idx-types" }
 idx-dsl = { path = "../idx-dsl" }

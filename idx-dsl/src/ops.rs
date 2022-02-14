@@ -129,9 +129,13 @@ pub mod codegen {
 
         let op_trait = quote! {
          impl #trait_name<#rhs> for #lhs
+         where
+            #rhs: idx_types::type_traits::CastType,
             {
                 fn #method_name(&mut self, rhs: #rhs) {
-                    self.0 #op rhs.0;
+                    let rhs: <#lhs as idx_types::type_traits::CastType>::Type
+                        = <#rhs as idx_types::type_traits::CastType>::cast(rhs);
+                    self.0 #op rhs;
                 }
             }
         };
@@ -147,10 +151,18 @@ pub mod codegen {
 
         let op_trait = quote! {
          impl #trait_name<#rhs> for #lhs
+         where
+            #lhs: idx_types::type_traits::CastType,
+            #rhs: idx_types::type_traits::CastType,
+            #res: idx_types::type_traits::CastType,
             {
                 type Output = #res;
                 fn #method_name(self, rhs: #rhs) -> Self::Output {
-                    (self.0 #op rhs.0).into()
+                    let lhs: <#res as idx_types::type_traits::CastType>::Type
+                        = <#lhs as idx_types::type_traits::CastType>::cast(self);
+                    let rhs: <#res as idx_types::type_traits::CastType>::Type
+                        = <#rhs as idx_types::type_traits::CastType>::cast(rhs);
+                    (lhs #op rhs).into()
                 }
             }
         };

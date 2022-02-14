@@ -21,8 +21,8 @@ pub fn idx_type(_attr: TokenStream, input: TokenStream) -> TokenStream {
 
     let idx::IdxType { name, wrap_type } = parse_macro_input!(input as idx::IdxType);
 
-    quote::quote! {
-        #[derive(Debug, Clone, Copy)]
+    let typedef = quote::quote! {
+        #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
         pub struct #name(pub #wrap_type);
 
         impl std::convert::From<#wrap_type> for #name
@@ -33,8 +33,15 @@ pub fn idx_type(_attr: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
-    }
-    .into()
+        impl idx_types::type_traits::CastType for #name {
+            type Type = #wrap_type;
+            fn cast<U: idx_types::type_traits::NumCast>(self) -> U {
+                idx_types::type_traits::cast::<Self::Type, U>(self.0).unwrap()
+            }
+        }
+    };
+
+    typedef.into()
 }
 
 /// Define operations we can do on our new types.
