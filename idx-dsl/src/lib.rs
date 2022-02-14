@@ -1,88 +1,47 @@
 #![feature(proc_macro_quote)]
+#![feature(proc_macro_diagnostic)]
+
+mod idx;
+mod ops;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, Ident, BinOp, Result, Token};
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
+use syn::parse_macro_input;
 
-#[allow(dead_code)] // the fields are seen in the macro but the analyser doesn't see that
-mod parser {
-    use super::*;
-
-    #[derive(Debug)]
-    pub struct IdxType {
-        pub name: Ident,
-        pub wrap_type: Ident
-    }
-    impl Parse for IdxType {
-        fn parse(input: ParseStream) -> Result<Self> {
-            let _ = input.parse::<Token![type]>()?;
-            let name = input.parse()?;
-            let _ = input.parse::<Token![<]>()?;
-            let wrap_type = input.parse()?;
-            let _ = input.parse::<Token![>]>()?;
-            Ok(IdxType { name, wrap_type })
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct Ops {
-        pub ops: Punctuated<Op, Token![,]>,
-    }
-    impl Parse for Ops {
-        fn parse(input: ParseStream) -> Result<Self> {
-            Ok(Ops { ops: input.parse_terminated(Op::parse)? })
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct Op {
-        pub lhs: Ident,
-        pub op: BinOp,
-        pub rhs: Ident,
-        pub res: Option<Ident>
-    }
-    impl Parse for Op {
-        fn parse(input: ParseStream) -> Result<Self> {
-            
-            let lhs = input.parse()?;
-            let op = input.parse()?;
-            let rhs = input.parse()?;
-            let res = if input.peek(syn::token::FatArrow) {
-                input.parse::<syn::token::FatArrow>()?;
-                Some(input.parse()?)
-            } else { None };
-            
-            Ok(Op { lhs, op, rhs, res })
-        }
-    }
-}
-use parser::*;
-
-
-#[proc_macro]
-pub fn seq_type(_input: TokenStream) -> TokenStream {
-    quote::quote! {
-    }.into()
+/// Define sequence types.
+#[proc_macro_attribute]
+pub fn seq_type(_attr: TokenStream, _input: TokenStream) -> TokenStream {
+    quote::quote! {}.into()
 }
 
-#[proc_macro]
-pub fn idx_type(input: TokenStream) -> TokenStream {
-    let IdxType { name, wrap_type } = parse_macro_input!(input as IdxType);
+/// Define index types.
+#[proc_macro_attribute]
+pub fn idx_type(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    //let attr = parse_macro_input!(attr as syn::AttributeArgs);
+    //println!("Attr: {:#?}", attr);
+
+    let idx::IdxType { name, wrap_type } = parse_macro_input!(input as idx::IdxType);
+
     quote::quote! {
         #[derive(Debug, Clone, Copy)]
         pub struct #name(pub #wrap_type);
-    }.into()
+
+        impl std::convert::From<#wrap_type> for #name
+        {
+            #[inline]
+            fn from(t: #wrap_type) -> Self {
+                #name(t)
+            }
+        }
+
+    }
+    .into()
 }
 
+/// Define operations we can do on our new types.
 #[proc_macro]
 pub fn def_ops(input: TokenStream) -> TokenStream {
-    let Ops { ops }  = parse_macro_input!(input as Ops);
-    // This moves the ops...
-    for op in ops.into_iter() {
-        println!("{} ?? {}", op.lhs.to_string(), op.rhs.to_string());
-    }
-    quote::quote! {
-    }.into()
+    let ops = parse_macro_input!(input as ops::Ops);
+    ops::codegen::emit_ops(&ops)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
 }
-

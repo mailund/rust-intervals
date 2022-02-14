@@ -1,25 +1,31 @@
-use idx_dsl::{seq_type, idx_type, def_ops};
+use idx_dsl::{def_ops, idx_type, seq_type};
 
-seq_type!(
-    SAIdx:  SA<XIdx>
-    StrIdx: Str
-);
+#[seq_type]
+type SA = [XIdx];
 
-idx_type!(
-    type Foo<usize>
-);
+#[seq_type]
+type Str;
 
-def_ops!(
-    Foo - Foo => Bar,
-    Foo + Bar => Foo,
-    Bar + Foo => Foo,
-    Foo += Bar
-);
+#[idx_type]
+type Offset = u32; // FIXME
 
+#[idx_type]
+type XIdx = u32;
+
+#[idx_type]
+type SaIdx = u32;
+
+def_ops! {
+    XIdx - XIdx => Offset,
+    XIdx + Offset => XIdx,
+    Offset + XIdx => XIdx,
+    XIdx += Offset,
+    XIdx -= Offset
+}
 
 #[test]
 fn it_works() {
-    let x = Foo(42);
+    let x = XIdx(42);
     assert!(x.0 == 42);
     let result = 2 + 2;
     assert_eq!(result, 4);

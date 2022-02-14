@@ -9,4 +9,6 @@ proc-macro = true
 [dependencies]
 idx = { path = "../idx" }
 syn = { version = "1.0.86", features = ["full", "parsing", "proc-macro", "extra-traits"] }
+proc-macro2 = "1.0.36"
 quote = "1.0.15"
+lazy_static = "1.4.0"
