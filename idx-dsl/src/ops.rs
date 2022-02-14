@@ -130,7 +130,7 @@ pub mod codegen {
         let op_trait = quote! {
          impl #trait_name<#rhs> for #lhs
             {
-                fn #method_name(&mut self, rhs: #rhs) -> Self::Output {
+                fn #method_name(&mut self, rhs: #rhs) {
                     self.0 #op rhs.0;
                 }
             }
@@ -159,18 +159,10 @@ pub mod codegen {
 
     pub fn emit_ops(ops: &super::Ops) -> Result<TokenStream> {
         let super::Ops { ops } = ops;
-        // FIXME: hwo do I get this back out?
         let gen_ops = ops
             .into_iter()
             .map(|op| emit_op(&op))
-            .collect::<Result<Vec<_>>>()?;
-
-        // quote::quote!(#(gen_ops))
-        let foo = &gen_ops[0];
-        let bar = quote::quote! {
-            #foo // FIXME can only generate one of them. Why?
-        };
-        println!("{}", bar);
-        Ok(bar)
+            .collect::<Result<TokenStream>>()?;
+        Ok(gen_ops)
     }
 }
