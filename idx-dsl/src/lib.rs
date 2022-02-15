@@ -1,6 +1,26 @@
 #![feature(proc_macro_quote)]
 #![feature(proc_macro_diagnostic)]
 
+mod hygiene {
+    use proc_macro2::{Span, TokenStream};
+    use proc_macro_crate::{crate_name, FoundCrate};
+    use quote::quote;
+    use syn::Ident;
+
+    pub fn idx_types_id(item: TokenStream) -> TokenStream {
+        let found_crate = crate_name("idx-types").expect("idx-types is present in `Cargo.toml`");
+
+        match found_crate {
+            FoundCrate::Itself => quote!(crate::#item),
+            FoundCrate::Name(name) => {
+                let crate_ = Ident::new(&name, Span::call_site());
+                quote!( #crate_::#item )
+            }
+        }
+        .into()
+    }
+}
+
 mod idx;
 mod ops;
 
@@ -15,33 +35,13 @@ pub fn seq_type(_attr: TokenStream, _input: TokenStream) -> TokenStream {
 
 /// Define index types.
 #[proc_macro_attribute]
-pub fn idx_type(_attr: TokenStream, input: TokenStream) -> TokenStream {
-    //let attr = parse_macro_input!(attr as syn::AttributeArgs);
-    //println!("Attr: {:#?}", attr);
-
-    let idx::IdxType { name, wrap_type } = parse_macro_input!(input as idx::IdxType);
-
-    let typedef = quote::quote! {
-        #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-        pub struct #name(pub #wrap_type);
-
-        impl std::convert::From<#wrap_type> for #name
-        {
-            #[inline]
-            fn from(t: #wrap_type) -> Self {
-                #name(t)
-            }
-        }
-
-        impl idx_types::type_traits::CastType for #name {
-            type Type = #wrap_type;
-            fn cast<U: idx_types::type_traits::NumCast>(self) -> U {
-                idx_types::type_traits::cast::<Self::Type, U>(self.0).unwrap()
-            }
-        }
-    };
-
-    typedef.into()
+pub fn idx_type(attrs: TokenStream, input: TokenStream) -> TokenStream {
+    let options = parse_macro_input!(attrs as idx::IdxTypeOptions);
+    //parse_macro_input!(attrs as idx::IdxTypeOptions);
+    let idx_type = parse_macro_input!(input as idx::IdxType);
+    idx::codegen::emit_idx_type(&options, &idx_type)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
 }
 
 /// Define operations we can do on our new types.

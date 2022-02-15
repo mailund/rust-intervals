@@ -1,5 +1,4 @@
-use syn::punctuated::Punctuated;
-use syn::{BinOp, Ident, Token};
+use syn::{BinOp, Ident};
 
 #[derive(Debug)]
 pub enum Op {
@@ -24,29 +23,32 @@ pub struct StructAssignOp {
 
 #[derive(Debug)]
 pub struct Ops {
-    pub ops: Punctuated<Op, Token![,]>,
+    pub ops: Vec<Op>,
 }
 
 #[allow(dead_code)] // the fields are seen in the macro but the analyser doesn't see that
 mod parser {
     use super::{Op, Ops, StructAssignOp, StructBinOp};
-    use syn::parse::{Parse, ParseStream};
-    use syn::spanned::Spanned;
-    use syn::{BinOp, Error, Ident, Result};
+    use syn::{
+        parse::{Parse, ParseStream},
+        punctuated::Punctuated,
+        spanned::Spanned,
+        BinOp, Error, Ident, Result, Token,
+    };
     use BinOp::*;
 
     impl Parse for Ops {
         fn parse(input: ParseStream) -> Result<Self> {
-            Ok(Ops {
-                ops: input.parse_terminated(Op::parse)?,
-            })
+            let ops: Punctuated<Op, Token![,]> = input.parse_terminated(Op::parse)?;
+            let ops: Vec<_> = ops.into_iter().collect();
+            Ok(Ops { ops })
         }
     }
 
     impl Op {
         fn parse_binop(lhs: Ident, op: BinOp, input: ParseStream) -> Result<Self> {
             let rhs = input.parse()?;
-            input.parse::<syn::token::FatArrow>()?;
+            let _: syn::token::FatArrow = input.parse()?;
             let res = input.parse()?;
             Ok(Op::BinOp(StructBinOp { lhs, op, rhs, res }))
         }
@@ -77,6 +79,7 @@ mod parser {
 
 pub mod codegen {
     use super::{Op, StructAssignOp, StructBinOp};
+    use crate::hygiene::idx_types_id;
     use proc_macro2::TokenStream;
     use quote::quote;
     use syn::spanned::Spanned;
@@ -127,14 +130,12 @@ pub mod codegen {
             method_name,
         } = get_binop_trait(&op)?;
 
+        let crate_type_traits = idx_types_id(quote!(type_traits));
         let op_trait = quote! {
-         impl #trait_name<#rhs> for #lhs
-         where
-            #rhs: idx_types::type_traits::CastType,
+            impl #trait_name<#rhs> for #lhs
             {
                 fn #method_name(&mut self, rhs: #rhs) {
-                    let rhs: <#lhs as idx_types::type_traits::CastType>::Type
-                        = <#rhs as idx_types::type_traits::CastType>::cast(rhs);
+                    let rhs = #crate_type_traits::cast_underlying::<#rhs,#lhs>(rhs);
                     self.0 #op rhs;
                 }
             }
@@ -149,19 +150,14 @@ pub mod codegen {
             method_name,
         } = get_binop_trait(&op)?;
 
+        let crate_type_traits = idx_types_id(quote!(type_traits));
         let op_trait = quote! {
-         impl #trait_name<#rhs> for #lhs
-         where
-            #lhs: idx_types::type_traits::CastType,
-            #rhs: idx_types::type_traits::CastType,
-            #res: idx_types::type_traits::CastType,
+            impl #trait_name<#rhs> for #lhs
             {
                 type Output = #res;
                 fn #method_name(self, rhs: #rhs) -> Self::Output {
-                    let lhs: <#res as idx_types::type_traits::CastType>::Type
-                        = <#lhs as idx_types::type_traits::CastType>::cast(self);
-                    let rhs: <#res as idx_types::type_traits::CastType>::Type
-                        = <#rhs as idx_types::type_traits::CastType>::cast(rhs);
+                    let lhs = #crate_type_traits::cast_underlying::<#lhs,#res>(self);
+                    let rhs = #crate_type_traits::cast_underlying::<#rhs,#res>(rhs);
                     (lhs #op rhs).into()
                 }
             }
