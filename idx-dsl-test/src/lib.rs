@@ -1,4 +1,4 @@
-use idx_dsl::{def_ops, idx_type, seq_type};
+use idx_dsl::{idx_type, seq_type};
 
 #[seq_type]
 type SA = [XIdx];
@@ -20,15 +20,6 @@ type XX = u32;
 
 #[idx_type(base_ops)]
 type YY = u32;
-
-def_ops! {
-    XIdx - XIdx => Offset,
-    XIdx + Offset => XIdx,
-    Offset + XIdx => XIdx,
-    XIdx += Offset,
-    XIdx -= Offset,
-    XIdx += usize,
-}
 
 #[test]
 fn it_works() {

@@ -110,14 +110,19 @@ pub mod codegen {
     use super::{IdxType, IdxTypeOptions};
     use crate::{hygiene::idx_types_id, ops};
     use proc_macro2::TokenStream;
-    use quote::quote;
+    use quote::{quote, quote_spanned};
     use syn::Result;
 
     pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
         let IdxType { name, wrap_type } = idx_type;
-        let crate_type_traits = idx_types_id(quote!(type_traits));
+        let type_traits = idx_types_id(quote!(type_traits));
 
         let typedef = quote::quote! {
+            /* FIXME: need to check type
+            extern crate static_assertions;
+            static_assertions::assert_impl_all!(#wrap_type, #type_traits::CastType);
+            */
+
             #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
             pub struct #name(pub #wrap_type);
 
@@ -127,17 +132,19 @@ pub mod codegen {
                 fn from(t: #wrap_type) -> Self { #name(t) }
             }
 
-            impl #crate_type_traits::CastType for #name {
+            impl #type_traits::CastType for #name {
                 type Type = #wrap_type;
                 #[inline]
-                fn cast<U: #crate_type_traits::NumCast>(self) -> U {
-                    #crate_type_traits::ncast::<Self::Type, U>(self.0).unwrap()
+                fn cast<U: #type_traits::NumCast>(self) -> U {
+                    #type_traits::ncast::<Self::Type, U>(self.0).unwrap()
                 }
             }
         };
 
         let base_ops = match options.base_ops {
-            Some(_) => syn::parse2::<ops::Ops>(quote! {
+            Some(token) => {
+                let span = token.span;
+                let code = quote_spanned! {span=>
                     #name + #wrap_type => #name,
                     #wrap_type + #name => #name,
                     #name - #wrap_type => #name,
@@ -150,14 +157,33 @@ pub mod codegen {
                     #name -= #wrap_type,
                     #name *= #wrap_type,
                     #name /= #wrap_type,
-            })?,
+                };
+                syn::parse2::<ops::Ops>(code)?
+            }
             None => ops::Ops { ops: vec![] },
         };
         let base_ops = ops::codegen::emit_ops(&base_ops)?;
 
+        let offset_ops = match &options.offset {
+            Some(offset) => {
+                let span = offset.span();
+                let code = quote_spanned! {span=>
+                    #name - #name => #offset,
+                    #name + #offset => #name,
+                    #offset + #name => #name,
+                    #name += #offset,
+                    #name -= #offset,
+                };
+                syn::parse2::<ops::Ops>(code)?
+            }
+            None => ops::Ops { ops: vec![] },
+        };
+        let offset_ops = ops::codegen::emit_ops(&offset_ops)?;
+
         Ok(quote! {
             #typedef
             #base_ops
+            #offset_ops
         }
         .into())
     }
