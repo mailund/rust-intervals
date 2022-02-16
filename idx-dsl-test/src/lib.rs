@@ -1,3 +1,5 @@
+#![feature(step_trait)] // for generated range iteration
+
 use idx_dsl::{idx_type, offset_type, seq_type};
 
 #[seq_type]
