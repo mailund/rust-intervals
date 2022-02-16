@@ -11,7 +11,13 @@ use syn::parse_macro_input;
 /// Define sequence types.
 #[proc_macro_attribute]
 pub fn seq_type(_attr: TokenStream, _input: TokenStream) -> TokenStream {
-    quote::quote! {}.into()
+    quote::quote!().into()
+}
+
+/// Define offset types.
+#[proc_macro_attribute]
+pub fn offset_type(_attr: TokenStream, _input: TokenStream) -> TokenStream {
+    quote::quote!().into()
 }
 
 /// Define index types.

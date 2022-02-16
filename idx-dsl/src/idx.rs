@@ -1,9 +1,43 @@
 use syn::Ident;
 
+mod options {
+    use super::parser::kw;
+    use std::ops::Deref;
+    use syn::Ident;
+
+    #[derive(Debug)]
+    pub struct BaseOpsOpt {
+        pub kw: kw::base_ops, // for error diagnostics
+    }
+
+    #[derive(Debug)]
+    pub struct OffsetOpt {
+        pub kw: kw::offset, // for error diagnostics
+        pub offset: Ident,
+    }
+
+    // This is a wrapper around Option that I can add methods to.
+    // It is an optional option, i.e., one that doesn't have to be
+    // provided.
+    #[derive(Debug)]
+    pub struct OptionalOpt<T>(pub Option<T>);
+    impl<T> Default for OptionalOpt<T> {
+        fn default() -> Self {
+            OptionalOpt(None)
+        }
+    }
+    impl<T> Deref for OptionalOpt<T> {
+        type Target = Option<T>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct IdxTypeOptions {
-    pub base_ops: Option<parser::kw::base_ops>,
-    pub offset: Option<Ident>,
+    pub base_ops: options::OptionalOpt<options::BaseOpsOpt>,
+    pub offset: options::OptionalOpt<options::OffsetOpt>,
 }
 
 #[derive(Debug)]
@@ -13,12 +47,13 @@ pub struct IdxType {
 }
 
 mod parser {
+    use super::options as opt;
     use super::{IdxType, IdxTypeOptions};
     use quote::ToTokens;
     use syn::{
         parse::{Parse, ParseStream},
         punctuated::Punctuated,
-        Ident, Result, Token,
+        Error, Ident, Result, Token,
     };
 
     pub mod kw {
@@ -26,58 +61,78 @@ mod parser {
         custom_keyword!(base_ops);
         custom_keyword!(offset);
     }
+
+    #[derive(Debug)]
     enum IdxTypeOption {
-        BaseOps(kw::base_ops), // We keep the Ident for error diagnostics
-        Offset(Ident),
+        BaseOps(kw::base_ops),
+        Offset(kw::offset, Ident),
     }
-    impl IdxTypeOption {
-        fn to_options(&self) -> IdxTypeOptions {
-            match &self {
-                &IdxTypeOption::BaseOps(kw) => IdxTypeOptions {
-                    base_ops: Some(kw.clone()),
-                    offset: None,
-                },
-                &IdxTypeOption::Offset(ident) => IdxTypeOptions {
-                    base_ops: None,
-                    offset: Some(ident.clone()),
-                },
-            }
-        }
-    }
+
     impl Parse for IdxTypeOption {
         fn parse(input: ParseStream) -> Result<Self> {
             if input.peek(kw::base_ops) {
-                let ident: kw::base_ops = input.parse()?;
-                Ok(IdxTypeOption::BaseOps(ident))
+                let kw: kw::base_ops = input.parse()?;
+                Ok(IdxTypeOption::BaseOps(kw))
             } else if input.peek(kw::offset) {
-                let _: kw::offset = input.parse()?;
+                let kw: kw::offset = input.parse()?;
                 let _: Token![=] = input.parse()?;
-                let offset_type = input.parse()?;
-                Ok(IdxTypeOption::Offset(offset_type))
+                let offset = input.parse()?;
+                Ok(IdxTypeOption::Offset(kw, offset))
             } else {
                 Err(input.error("Unknown option"))
             }
         }
     }
 
-    impl IdxTypeOptions {
-        fn merge(self, other: IdxTypeOptions) -> syn::Result<Self> {
-            fn either<T: ToTokens>(a: Option<T>, b: Option<T>) -> syn::Result<Option<T>> {
-                match (a, b) {
-                    (None, None) => Ok(None),
-                    (Some(val), None) | (None, Some(val)) => Ok(Some(val)),
-                    (Some(a), Some(b)) => {
-                        let mut error = syn::Error::new_spanned(b, "redundant attribute argument");
-                        error.combine(syn::Error::new_spanned(a, "note: first one here"));
-                        Err(error)
-                    }
+    fn redundant_error<T: ToTokens>(a: T, b: T) -> Error {
+        let mut error = Error::new_spanned(b, "redundant attribute argument");
+        error.combine(Error::new_spanned(a, "note: first one here"));
+        error
+    }
+
+    pub trait UpdateErr {
+        fn err(&self, upd: &Self) -> Error;
+    }
+    impl UpdateErr for opt::BaseOpsOpt {
+        fn err(&self, upd: &Self) -> Error {
+            redundant_error(self.kw, upd.kw)
+        }
+    }
+    impl UpdateErr for opt::OffsetOpt {
+        fn err(&self, upd: &Self) -> Error {
+            redundant_error(self.kw, upd.kw)
+        }
+    }
+    impl<T: UpdateErr> opt::OptionalOpt<T> {
+        fn update(&mut self, upd: T) -> Result<()> {
+            let existing: &Option<T> = &self.0;
+            match &existing {
+                &Some(existing) => Err(existing.err(&upd)),
+                _ => {
+                    self.0 = Some(upd);
+                    Ok(())
                 }
             }
+        }
+    }
 
-            Ok(Self {
-                base_ops: either(self.base_ops, other.base_ops)?,
-                offset: either(self.offset, other.offset)?,
-            })
+    impl IdxTypeOptions {
+        /// Merge an option into the collection of options. We could do this functional, but it
+        /// is more work, and there is nothing wrong with some imperative programming from time
+        /// to time. Updating just the option we want is easier with a mutable self.
+        fn merge_opt(&mut self, opt: &IdxTypeOption) -> syn::Result<&mut Self> {
+            match opt {
+                IdxTypeOption::BaseOps(kw) => {
+                    self.base_ops.update(opt::BaseOpsOpt { kw: *kw })?;
+                }
+                IdxTypeOption::Offset(kw, ident) => {
+                    self.offset.update(opt::OffsetOpt {
+                        kw: *kw,
+                        offset: ident.clone(),
+                    })?;
+                }
+            };
+            Ok(self)
         }
     }
 
@@ -85,12 +140,11 @@ mod parser {
         fn parse(input: ParseStream) -> Result<Self> {
             let options: Punctuated<IdxTypeOption, Token![,]> =
                 input.parse_terminated(IdxTypeOption::parse)?;
-            let opts: Result<Self> = options
-                .iter()
-                .try_fold(IdxTypeOptions::default(), |current, new| {
-                    current.merge(new.to_options())
-                });
-            opts
+            let mut opts = IdxTypeOptions::default();
+            for opt in options.iter() {
+                opts.merge_opt(opt)?;
+            }
+            Ok(opts)
         }
     }
 
@@ -99,7 +153,7 @@ mod parser {
             let _: Token![type] = input.parse()?;
             let name = input.parse()?;
             let _: Token![=] = input.parse()?;
-            let wrap_type = input.parse()?;
+            let wrap_type = input.parse()?; // FIXME: type check
             let _: Token![;] = input.parse()?;
             Ok(IdxType { name, wrap_type })
         }
@@ -107,22 +161,77 @@ mod parser {
 }
 
 pub mod codegen {
+    use super::options as opt;
     use super::{IdxType, IdxTypeOptions};
     use crate::{hygiene::idx_types, ops};
     use proc_macro2::TokenStream;
     use quote::{quote, quote_spanned};
     use syn::Result;
 
+    // Code generation for options
+    pub trait OptCodeGen {
+        fn code_gen(&self, t: &IdxType) -> Result<TokenStream>;
+    }
+
+    impl<T: OptCodeGen> OptCodeGen for opt::OptionalOpt<T> {
+        fn code_gen(&self, t: &IdxType) -> Result<TokenStream> {
+            match &self.0 {
+                None => Ok(quote!()),
+                Some(wrapped) => wrapped.code_gen(t),
+            }
+        }
+    }
+
+    impl OptCodeGen for opt::BaseOpsOpt {
+        fn code_gen(&self, t: &IdxType) -> Result<TokenStream> {
+            let opt::BaseOpsOpt { kw } = self;
+            let IdxType { name, wrap_type } = t;
+
+            let span = kw.span;
+            let dsl_code = quote_spanned! {span=>
+                #name + #wrap_type => #name,
+                #wrap_type + #name => #name,
+                #name - #wrap_type => #name,
+                #wrap_type - #name => #name,
+                #name * #wrap_type => #name,
+                #wrap_type * #name => #name,
+                #name / #wrap_type => #name,
+                #wrap_type / #name => #name,
+                #name += #wrap_type,
+                #name -= #wrap_type,
+                #name *= #wrap_type,
+                #name /= #wrap_type,
+            };
+
+            let base_ops = syn::parse2::<ops::Ops>(dsl_code)?;
+            ops::codegen::emit_ops(&base_ops)
+        }
+    }
+
+    impl OptCodeGen for opt::OffsetOpt {
+        fn code_gen(&self, t: &IdxType) -> Result<TokenStream> {
+            let opt::OffsetOpt { offset, .. } = self;
+            let IdxType { name, .. } = t;
+
+            let span = offset.span();
+            let dsl_code = quote_spanned! {span=>
+                    #name - #name => #offset,
+                    #name + #offset => #name,
+                    #offset + #name => #name,
+                    #name += #offset,
+                    #name -= #offset,
+            };
+
+            let ops_code = syn::parse2::<ops::Ops>(dsl_code)?;
+            ops::codegen::emit_ops(&ops_code)
+        }
+    }
+
     pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
         let IdxType { name, wrap_type } = idx_type;
         let type_traits = idx_types(Some(quote!(type_traits)));
 
         let typedef = quote::quote! {
-            /* FIXME: need to check type
-            extern crate static_assertions;
-            static_assertions::assert_impl_all!(#wrap_type, #type_traits::CastType);
-            */
-
             #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
             pub struct #name(pub #wrap_type);
 
@@ -141,44 +250,8 @@ pub mod codegen {
             }
         };
 
-        let base_ops = match options.base_ops {
-            Some(token) => {
-                let span = token.span;
-                let code = quote_spanned! {span=>
-                    #name + #wrap_type => #name,
-                    #wrap_type + #name => #name,
-                    #name - #wrap_type => #name,
-                    #wrap_type - #name => #name,
-                    #name * #wrap_type => #name,
-                    #wrap_type * #name => #name,
-                    #name / #wrap_type => #name,
-                    #wrap_type / #name => #name,
-                    #name += #wrap_type,
-                    #name -= #wrap_type,
-                    #name *= #wrap_type,
-                    #name /= #wrap_type,
-                };
-                syn::parse2::<ops::Ops>(code)?
-            }
-            None => ops::Ops { ops: vec![] },
-        };
-        let base_ops = ops::codegen::emit_ops(&base_ops)?;
-
-        let offset_ops = match &options.offset {
-            Some(offset) => {
-                let span = offset.span();
-                let code = quote_spanned! {span=>
-                    #name - #name => #offset,
-                    #name + #offset => #name,
-                    #offset + #name => #name,
-                    #name += #offset,
-                    #name -= #offset,
-                };
-                syn::parse2::<ops::Ops>(code)?
-            }
-            None => ops::Ops { ops: vec![] },
-        };
-        let offset_ops = ops::codegen::emit_ops(&offset_ops)?;
+        let base_ops = options.base_ops.code_gen(idx_type)?;
+        let offset_ops = options.offset.code_gen(idx_type)?;
 
         Ok(quote! {
             #typedef
