@@ -203,8 +203,7 @@ pub mod codegen {
                 #name /= #wrap_type,
             };
 
-            let base_ops = syn::parse2::<ops::Ops>(dsl_code)?;
-            ops::codegen::emit_ops(&base_ops)
+            syn::parse2::<ops::Ops>(dsl_code)?.code_gen()
         }
     }
 
@@ -222,8 +221,7 @@ pub mod codegen {
                     #name -= #offset,
             };
 
-            let ops_code = syn::parse2::<ops::Ops>(dsl_code)?;
-            ops::codegen::emit_ops(&ops_code)
+            syn::parse2::<ops::Ops>(dsl_code)?.code_gen()
         }
     }
 

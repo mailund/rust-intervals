@@ -173,4 +173,10 @@ pub mod codegen {
             .collect::<Result<TokenStream>>()?;
         Ok(gen_ops)
     }
+
+    impl super::Ops {
+        pub fn code_gen(&self) -> Result<TokenStream> {
+            emit_ops(self)
+        }
+    }
 }
