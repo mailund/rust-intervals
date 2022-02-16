@@ -79,7 +79,7 @@ mod parser {
 
 pub mod codegen {
     use super::{Op, StructAssignOp, StructBinOp};
-    use crate::hygiene::idx_types_id;
+    use crate::hygiene::idx_types;
     use proc_macro2::TokenStream;
     use quote::quote;
     use syn::spanned::Spanned;
@@ -130,7 +130,7 @@ pub mod codegen {
             method_name,
         } = get_binop_trait(&op)?;
 
-        let crate_type_traits = idx_types_id(quote!(type_traits));
+        let crate_type_traits = idx_types(Some(quote!(type_traits)));
         let op_trait = quote! {
             impl #trait_name<#rhs> for #lhs
             {
@@ -150,7 +150,7 @@ pub mod codegen {
             method_name,
         } = get_binop_trait(&op)?;
 
-        let crate_type_traits = idx_types_id(quote!(type_traits));
+        let crate_type_traits = idx_types(Some(quote!(type_traits)));
         let op_trait = quote! {
             impl #trait_name<#rhs> for #lhs
             {

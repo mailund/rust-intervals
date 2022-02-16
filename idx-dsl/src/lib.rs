@@ -1,26 +1,7 @@
 #![feature(proc_macro_quote)]
 #![feature(proc_macro_diagnostic)]
 
-mod hygiene {
-    use proc_macro2::{Span, TokenStream};
-    use proc_macro_crate::{crate_name, FoundCrate};
-    use quote::quote;
-    use syn::Ident;
-
-    pub fn idx_types_id(item: TokenStream) -> TokenStream {
-        let found_crate = crate_name("idx-types").expect("idx-types is present in `Cargo.toml`");
-
-        match found_crate {
-            FoundCrate::Itself => quote!(crate::#item),
-            FoundCrate::Name(name) => {
-                let crate_ = Ident::new(&name, Span::call_site());
-                quote!( #crate_::#item )
-            }
-        }
-        .into()
-    }
-}
-
+mod hygiene;
 mod idx;
 mod ops;
 

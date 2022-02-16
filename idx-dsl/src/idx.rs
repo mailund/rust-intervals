@@ -108,14 +108,14 @@ mod parser {
 
 pub mod codegen {
     use super::{IdxType, IdxTypeOptions};
-    use crate::{hygiene::idx_types_id, ops};
+    use crate::{hygiene::idx_types, ops};
     use proc_macro2::TokenStream;
     use quote::{quote, quote_spanned};
     use syn::Result;
 
     pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
         let IdxType { name, wrap_type } = idx_type;
-        let type_traits = idx_types_id(quote!(type_traits));
+        let type_traits = idx_types(Some(quote!(type_traits)));
 
         let typedef = quote::quote! {
             /* FIXME: need to check type
