@@ -49,7 +49,7 @@ pub struct IdxType {
 mod parser {
     use super::options as opt;
     use super::{IdxType, IdxTypeOptions};
-    use quote::ToTokens;
+    use crate::err;
     use syn::{
         parse::{Parse, ParseStream},
         punctuated::Punctuated,
@@ -84,23 +84,17 @@ mod parser {
         }
     }
 
-    fn redundant_error<T: ToTokens>(a: T, b: T) -> Error {
-        let mut error = Error::new_spanned(b, "redundant attribute argument");
-        error.combine(Error::new_spanned(a, "note: first one here"));
-        error
-    }
-
     pub trait UpdateErr {
         fn err(&self, upd: &Self) -> Error;
     }
     impl UpdateErr for opt::BaseOpsOpt {
         fn err(&self, upd: &Self) -> Error {
-            redundant_error(self.kw, upd.kw)
+            err::redundant_error(self.kw, upd.kw)
         }
     }
     impl UpdateErr for opt::OffsetOpt {
         fn err(&self, upd: &Self) -> Error {
-            redundant_error(self.kw, upd.kw)
+            err::redundant_error(self.kw, upd.kw)
         }
     }
     impl<T: UpdateErr> opt::OptionalOpt<T> {
@@ -163,7 +157,7 @@ mod parser {
 pub mod codegen {
     use super::options as opt;
     use super::{IdxType, IdxTypeOptions};
-    use crate::{hygiene::idx_types, ops};
+    use crate::{ops, wrap_type::gen_wrap_type};
     use proc_macro2::TokenStream;
     use quote::{quote, quote_spanned};
     use syn::Result;
@@ -227,27 +221,8 @@ pub mod codegen {
 
     pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
         let IdxType { name, wrap_type } = idx_type;
-        let type_traits = idx_types(Some(quote!(type_traits)));
 
-        let typedef = quote::quote! {
-            #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-            pub struct #name(pub #wrap_type);
-
-            impl std::convert::From<#wrap_type> for #name
-            {
-                #[inline]
-                fn from(t: #wrap_type) -> Self { #name(t) }
-            }
-
-            impl #type_traits::CastType for #name {
-                type Type = #wrap_type;
-                #[inline]
-                fn cast<U: #type_traits::NumCast>(self) -> U {
-                    #type_traits::ncast::<Self::Type, U>(self.0).unwrap()
-                }
-            }
-        };
-
+        let typedef = gen_wrap_type(name, wrap_type);
         let base_ops = options.base_ops.code_gen(idx_type)?;
         let offset_ops = options.offset.code_gen(idx_type)?;
 

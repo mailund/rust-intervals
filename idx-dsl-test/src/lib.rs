@@ -1,4 +1,4 @@
-use idx_dsl::{idx_type, seq_type};
+use idx_dsl::{idx_type, offset_type, seq_type};
 
 #[seq_type]
 type SA = [XIdx];
@@ -6,7 +6,7 @@ type SA = [XIdx];
 #[seq_type]
 type Str;
 
-#[idx_type] // FIXME: make an offset type
+#[offset_type]
 type Offset = isize;
 
 #[idx_type(base_ops, offset = Offset)]
@@ -31,4 +31,6 @@ fn it_works() {
     let y = XIdx(13);
     let off = x - y;
     assert_eq!(off, Offset(42 - 13));
+    let off2 = 2 * off;
+    assert_eq!(off2, Offset(2 * (42 - 13)));
 }
