@@ -35,4 +35,9 @@ fn it_works() {
     assert_eq!(off, Offset(42 - 13));
     let off2 = 2 * off;
     assert_eq!(off2, Offset(2 * (42 - 13)));
+
+    for i in XIdx(0)..XIdx(10) {
+        let XIdx(j) = i;
+        println!("{} {}", i, j);
+    }
 }

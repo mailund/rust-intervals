@@ -4,14 +4,14 @@ pub mod type_traits {
 
     pub trait CastType {
         type Type: NumCast;
-        fn cast<T: NumCast>(self) -> T;
+        fn cast<T: NumCast>(&self) -> T;
     }
 
-    impl<T: NumCast> CastType for T {
+    impl<T: NumCast + Copy> CastType for T {
         type Type = T;
         #[inline]
-        fn cast<U: NumCast>(self) -> U {
-            ncast::<Self::Type, U>(self).unwrap()
+        fn cast<U: NumCast>(&self) -> U {
+            ncast::<Self::Type, U>(*self).unwrap()
         }
     }
 
