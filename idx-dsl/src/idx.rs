@@ -44,6 +44,8 @@ pub struct IdxTypeOptions {
 pub struct IdxType {
     pub name: Ident,
     pub wrap_type: Ident,
+    // I don't actually use signed right now, the underlying integer handles it,
+    // but I will keep it for a bit, just in case.
     pub signed: bool,
 }
 
@@ -181,10 +183,10 @@ mod parser {
 pub mod codegen {
     use super::options as opt;
     use super::{IdxType, IdxTypeOptions};
-    use crate::{ops, wrap_type::gen_wrap_type};
+    use crate::{hygiene::idx_types, ops, wrap_type::gen_wrap_type};
     use proc_macro2::TokenStream;
     use quote::{quote, quote_spanned};
-    use syn::Result;
+    use syn::{Ident, Result};
 
     // Code generation for options
     pub trait OptCodeGen {
@@ -247,17 +249,141 @@ pub mod codegen {
         }
     }
 
-    pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
-        let IdxType { name, wrap_type, .. /* signed */ } = idx_type;
+    use syn::{/*parse,*/ AngleBracketedGenericArguments, Type};
+    struct SeqType {
+        seq_type: Type,
+        of: Type,
+        generics: AngleBracketedGenericArguments,
+    }
 
-        let typedef = gen_wrap_type(name, wrap_type);
+    #[allow(dead_code)] // For now
+    fn emit_range_index_trait(idx_type: &IdxType, seq_type: &SeqType) -> Result<TokenStream> {
+        let IdxType { name, .. } = idx_type;
+        let SeqType {
+            seq_type,
+            of,
+            generics,
+        } = seq_type;
+
+        let span = name.span();
+        let code = quote_spanned! {span=>
+            impl #generics Index<Range<#name>> for #seq_type
+            {
+                type Output = [ #of ];
+                fn index(&self, r: Range<Idx>) -> &Self::Output {
+                    self.0[r.start.index(self.len())..r.end.index(self.len())].into()
+                }
+            }
+
+            impl #generics IndexMut<Range<#name>> for #seq_type
+            {
+                type Output = [ #of ];
+                fn index(&mut self, r: Range<Idx>) -> &mut Self::Output {
+                    self.0[r.start.index(self.len())..r.end.index(self.len())].into()
+                }
+            }
+
+        };
+        Ok(code)
+    }
+
+    #[allow(dead_code)]
+    fn emit_index_trait(idx_type: &IdxType, seq_type: &SeqType) -> Result<TokenStream> {
+        let IdxType { name, .. } = idx_type;
+        let SeqType {
+            seq_type,
+            of,
+            generics,
+        } = seq_type;
+
+        let span = name.span();
+        let code = quote_spanned! {span=>
+            impl #generics Index<#name> for #seq_type
+            {
+                type Output = #of;
+                #[inline]
+                fn index(&self, i: #name) -> &Self::Output {
+                    &self[i.index(self.len())]
+                }
+            }
+
+            impl #generics IndexMut<#name> for #seq_type
+            {
+                #[inline]
+                fn index_mut(&mut self, i: #name) -> &mut Self::Output {
+                    &mut self[i.index(self.len())]
+                }
+            }
+        };
+        println!("{}", code);
+        Ok(code)
+    }
+
+    #[allow(dead_code)]
+    fn emit_index_type(idx_type: &IdxType) -> Result<TokenStream> {
+        let IdxType { name, .. } = idx_type;
+        let type_traits = idx_types(Some(quote!(type_traits)));
+        let impl_mod_name = format!("{}_index_impl", name).to_lowercase();
+        let impl_mod = Ident::new(&impl_mod_name, name.span());
+
+        // FIXME: This should depend on parameters...
+        /*
+        let seq_type = SeqType {
+            seq_type: parse(quote!([T]).into())?,
+            of: parse(quote!(T).into())?,
+            generics: parse(quote!(<T>).into())?,
+        };
+        */
+        /*
+        let seq_type = SeqType {
+            seq_type: parse(quote!([u8]).into())?,
+            of: parse(quote!(u8).into())?,
+            generics: parse(quote!(<>).into())?,
+        };
+        let index_trait = emit_index_trait(idx_type, &seq_type)?;
+        */
+
+        let span = name.span();
+        let code = quote_spanned! {span=>
+            #[allow(unused_imports)]
+            mod #impl_mod {
+                use super::#name;
+                use #type_traits::IndexType;
+
+                // These should probably move
+                use std::ops::{Index, IndexMut};
+                use core::ops::Range;
+
+                impl IndexType for #name {
+                    fn index(&self, n: usize) -> usize {
+                        self.0.index(n)
+                    }
+                }
+
+                //#index_trait
+            }
+        };
+
+        Ok(code)
+    }
+
+    pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
+        let IdxType {
+            name, wrap_type, ..
+        } = idx_type;
+
+        let typedef = gen_wrap_type(name, wrap_type)?;
+        let index_type = emit_index_type(idx_type)?;
         let base_ops = options.base_ops.code_gen(idx_type)?;
         let offset_ops = options.offset.code_gen(idx_type)?;
 
-        Ok(quote! {
+        let code = quote! {
             #typedef
+            #index_type
             #base_ops
             #offset_ops
-        })
+        };
+
+        Ok(code)
     }
 }

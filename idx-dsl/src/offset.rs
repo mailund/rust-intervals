@@ -45,7 +45,7 @@ pub mod codegen {
     pub fn emit_offset_type(offset_type: &OffsetType) -> Result<TokenStream> {
         let OffsetType { name, wrap_type } = offset_type;
 
-        let type_code = gen_wrap_type(name, wrap_type);
+        let type_code = gen_wrap_type(name, wrap_type)?;
 
         // FIXME: I am not a hundred procent sure that these are the right operations
         let span = name.span();

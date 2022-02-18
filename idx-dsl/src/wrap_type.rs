@@ -1,9 +1,9 @@
 use crate::hygiene::idx_types;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::Ident;
+use syn::{Ident, Result};
 
-pub fn gen_wrap_type(name: &Ident, wrap_type: &Ident) -> TokenStream {
+pub fn gen_wrap_type(name: &Ident, wrap_type: &Ident) -> Result<TokenStream> {
     // Where we can find idx_types::type_traits
     let type_traits = idx_types(Some(quote!(type_traits)));
 
@@ -70,9 +70,7 @@ pub fn gen_wrap_type(name: &Ident, wrap_type: &Ident) -> TokenStream {
                 }
             }
         }
-        use #impl_mod::*;
-
     };
 
-    code
+    Ok(code)
 }

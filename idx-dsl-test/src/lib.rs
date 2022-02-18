@@ -5,8 +5,8 @@ use idx_dsl::{idx_type, offset_type, seq_type};
 #[seq_type]
 type SA = [XIdx];
 
-#[seq_type]
-type Str;
+/*#[seq_type]
+type Str = [str];*/
 
 #[offset_type]
 type Offset = isize;
@@ -15,13 +15,7 @@ type Offset = isize;
 type XIdx = u32;
 
 #[idx_type(offset = Offset, base_ops)]
-type SaIdx = u32;
-
-#[idx_type(offset = Offset)]
-type XX = isize;
-
-#[idx_type(base_ops)]
-type YY = i8;
+type SaIdx = i32;
 
 #[test]
 fn it_works() {
@@ -40,4 +34,8 @@ fn it_works() {
         let XIdx(j) = i;
         println!("{} {}", i, j);
     }
+
+    use idx_types::type_traits::IndexType;
+    assert_eq!(SaIdx(0).index(10), 0);
+    assert_eq!(SaIdx(-1).index(10), 9);
 }

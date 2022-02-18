@@ -5,6 +5,7 @@ mod hygiene;
 mod idx;
 mod offset;
 mod ops;
+mod seq;
 mod wrap_type;
 
 mod err {
@@ -23,8 +24,11 @@ use syn::parse_macro_input;
 
 /// Define sequence types.
 #[proc_macro_attribute]
-pub fn seq_type(_attr: TokenStream, _input: TokenStream) -> TokenStream {
-    quote::quote!().into()
+pub fn seq_type(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let seq_type = parse_macro_input!(input as seq::SeqType);
+    seq::codegen::emit_seq_type(&seq_type)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
 }
 
 /// Define offset types.
