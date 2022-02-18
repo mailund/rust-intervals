@@ -18,10 +18,10 @@ type XIdx = u32;
 type SaIdx = u32;
 
 #[idx_type(offset = Offset)]
-type XX = u32;
+type XX = isize;
 
 #[idx_type(base_ops)]
-type YY = u32;
+type YY = i8;
 
 #[test]
 fn it_works() {

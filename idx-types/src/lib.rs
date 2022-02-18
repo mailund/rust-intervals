@@ -2,6 +2,7 @@ pub mod type_traits {
     // Re-exporting these for code generation
     pub use num::{cast as ncast, NumCast};
 
+    /// Trait for numerical-like objects we can cast between.
     pub trait CastType {
         type Type: NumCast;
         fn cast<T: NumCast>(&self) -> T;
@@ -39,4 +40,46 @@ pub mod type_traits {
     {
         cast_underlying::<From, To>(from).into()
     }
+
+    /// Trait for objects we can use to index into a range.
+    /// Unsigned values are just their own index, but signed
+    /// can also index from the right using negative numbers.
+    pub trait IndexType {
+        /// Index into a sequence of length n. The method doesn't
+        /// have to check for bounds, but for signed values, n can be
+        /// used to index from the right.
+        fn index(&self, n: usize) -> usize;
+    }
+
+    macro_rules! gen_unsigned {
+        ($($t:ty),*) => {
+            $(
+                impl IndexType for $t {
+                    #[inline]
+                    fn index(&self, _n: usize) -> usize {
+                        self.cast()
+                    }
+                }
+            )*
+        }
+    }
+    gen_unsigned!(u8, u16, u32, u64, usize);
+
+    macro_rules! gen_signed {
+        ($($t:ty),*) => {
+            $(
+                impl IndexType for $t {
+                    #[inline]
+                    fn index(&self, n: usize) -> usize {
+                        let mut res: Self = *self;
+                        if res < 0 { // if negative, index from the right
+                            res += n.cast::<Self>()
+                        }
+                        res.cast()
+                    }
+                }
+            )*
+        }
+    }
+    gen_signed!(i8, i16, i32, i64, isize);
 }

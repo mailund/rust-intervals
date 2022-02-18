@@ -44,6 +44,7 @@ pub struct IdxTypeOptions {
 pub struct IdxType {
     pub name: Ident,
     pub wrap_type: Ident,
+    pub signed: bool,
 }
 
 mod parser {
@@ -142,6 +143,24 @@ mod parser {
         }
     }
 
+    const SIGNED_TYPES: &[&str] = &["i8", "i16", "i32", "i64", "isize"];
+    const UNSIGNED_TYPES: &[&str] = &["u8", "u16", "u32", "u64", "usize"];
+
+    fn check_type(wrap_type: &Ident) -> Result<bool> {
+        let wrap_str: &str = &wrap_type.to_string();
+        if SIGNED_TYPES.contains(&wrap_str) {
+            Ok(true)
+        } else if UNSIGNED_TYPES.contains(&wrap_str) {
+            Ok(false)
+        } else {
+            Err(Error::new_spanned(
+                wrap_type,
+                "invalid type for an index. Indices must be basic integers, either
+                 signed (i8, i16, i32, i64, or isize) or unsigned (u8, u16, u32, u64, usize)",
+            ))
+        }
+    }
+
     impl Parse for IdxType {
         fn parse(input: ParseStream) -> Result<Self> {
             let _: Token![type] = input.parse()?;
@@ -149,7 +168,12 @@ mod parser {
             let _: Token![=] = input.parse()?;
             let wrap_type = input.parse()?; // FIXME: type check
             let _: Token![;] = input.parse()?;
-            Ok(IdxType { name, wrap_type })
+            let signed = check_type(&wrap_type)?;
+            Ok(IdxType {
+                name,
+                wrap_type,
+                signed,
+            })
         }
     }
 }
@@ -179,7 +203,11 @@ pub mod codegen {
     impl OptCodeGen for opt::BaseOpsOpt {
         fn code_gen(&self, t: &IdxType) -> Result<TokenStream> {
             let opt::BaseOpsOpt { kw } = self;
-            let IdxType { name, wrap_type } = t;
+            let IdxType {
+                name,
+                wrap_type,
+                .. // remember signed later
+            } = t;
 
             let span = kw.span;
             let dsl_code = quote_spanned! {span=>
@@ -220,7 +248,7 @@ pub mod codegen {
     }
 
     pub fn emit_idx_type(options: &IdxTypeOptions, idx_type: &IdxType) -> Result<TokenStream> {
-        let IdxType { name, wrap_type } = idx_type;
+        let IdxType { name, wrap_type, .. /* signed */ } = idx_type;
 
         let typedef = gen_wrap_type(name, wrap_type);
         let base_ops = options.base_ops.code_gen(idx_type)?;
@@ -230,7 +258,6 @@ pub mod codegen {
             #typedef
             #base_ops
             #offset_ops
-        }
-        .into())
+        })
     }
 }

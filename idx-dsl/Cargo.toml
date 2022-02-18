@@ -8,6 +8,7 @@ proc-macro = true
 
 [dependencies]
 idx-types = { path = "../idx-types" }
+
 syn = { version = "1.0.86", features = ["full", "parsing", "proc-macro", "extra-traits"] }
 proc-macro2 = "1.0.36"
 quote = "1.0.15"

@@ -12,15 +12,23 @@ pub mod parser {
     use super::OffsetType;
     use syn::{
         parse::{Parse, ParseStream},
-        Result, Token,
+        Error, Ident, Result, Token,
     };
+    
+    const VALID_OFFSET_TYPES: &[&str] = &["i8", "i16", "i32", "i64", "isize"];
 
     impl Parse for OffsetType {
         fn parse(input: ParseStream) -> Result<Self> {
             let _: Token![type] = input.parse()?;
-            let name = input.parse()?;
+            let name: Ident = input.parse()?;
             let _: Token![=] = input.parse()?;
-            let wrap_type = input.parse()?; // FIXME: type check
+            let wrap_type: Ident = input.parse()?;
+            if !VALID_OFFSET_TYPES.contains(&{&wrap_type.to_string()}) {
+                return Err(Error::new_spanned(
+                    wrap_type, 
+                    "invalid type for an offset. Offsets must be signed (i8, i16, i32, i64, or isize)"
+                ));
+            }
             let _: Token![;] = input.parse()?;
             Ok(OffsetType { name, wrap_type })
         }
