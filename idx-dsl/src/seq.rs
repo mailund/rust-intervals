@@ -17,21 +17,21 @@ pub mod parser {
 
     pub mod kw {
         use syn::custom_keyword;
-        custom_keyword!(index);
+        custom_keyword!(of);
     }
 
     impl Parse for SeqType {
         fn parse(input: ParseStream) -> Result<Self> {
-            let _: Token![type] = input.parse()?;
+            let _: Token![struct] = input.parse()?;
             let name: Ident = input.parse()?;
 
-            let _: Token![=] = input.parse()?;
+            let block;
+            syn::braced!(block in input);
+            let _: kw::of = block.parse()?;
+            let _: Token![:] = block.parse()?;
+            let of_type: Ident = block.parse()?;
+            let _: Token![,] = block.parse()?;
 
-            let of_type;
-            syn::bracketed!(of_type in input);
-            let of_type: Ident = of_type.parse()?;
-
-            let _: Token![;] = input.parse()?;
             Ok(SeqType { name, of_type })
         }
     }

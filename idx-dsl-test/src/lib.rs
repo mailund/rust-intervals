@@ -3,10 +3,14 @@
 use idx_dsl::{idx_type, offset_type, seq_type};
 
 #[seq_type]
-type SA = [XIdx];
+struct SA {
+    of: u32,
+}
 
-/*#[seq_type]
-type Str = [str];*/
+#[seq_type]
+struct Str {
+    of: str,
+}
 
 #[offset_type]
 type Offset = isize;
