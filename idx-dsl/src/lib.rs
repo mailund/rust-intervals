@@ -3,6 +3,7 @@
 
 mod hygiene;
 mod idx;
+mod index_trait;
 mod offset;
 mod ops;
 mod seq;
@@ -55,6 +56,15 @@ pub fn idx_type(attrs: TokenStream, input: TokenStream) -> TokenStream {
 pub fn def_ops(input: TokenStream) -> TokenStream {
     let ops = parse_macro_input!(input as ops::Ops);
     ops::codegen::emit_ops(&ops)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+/// Define what we can index
+#[proc_macro]
+pub fn def_index(input: TokenStream) -> TokenStream {
+    let itrait = parse_macro_input!(input as index_trait::IndexTrait);
+    index_trait::codegen::emit_index_trait(&itrait)
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }

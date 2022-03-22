@@ -1,16 +1,9 @@
 #![feature(step_trait)] // for generated range iteration
 
-use idx_dsl::{idx_type, offset_type, seq_type};
+use idx_dsl::{def_index, idx_type, offset_type, seq_type};
 
 #[seq_type]
-struct SA {
-    of: u32,
-}
-
-#[seq_type]
-struct Str {
-    of: str,
-}
+type SA<u32>;
 
 #[offset_type]
 type Offset = isize;
@@ -20,6 +13,8 @@ type XIdx = u32;
 
 #[idx_type(offset = Offset, base_ops)]
 type SaIdx = i32;
+
+//def_index!(SaIdx for SA);
 
 #[test]
 fn it_works() {
@@ -42,4 +37,8 @@ fn it_works() {
     use idx_types::type_traits::IndexType;
     assert_eq!(SaIdx(0).index(10), 0);
     assert_eq!(SaIdx(-1).index(10), 9);
+
+    let _x: SA = vec![1, 2, 3].into();
+
+    // FIXME println!("{}", x[0]);
 }
