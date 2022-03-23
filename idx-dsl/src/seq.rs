@@ -33,6 +33,7 @@ pub mod parser {
 
 pub mod codegen {
     use super::SeqType;
+    use crate::hygiene::idx_types;
     use proc_macro2::TokenStream;
     use quote::{format_ident, quote};
     use syn::Result;
@@ -40,11 +41,17 @@ pub mod codegen {
     fn emit_slice(seq_type: &SeqType) -> TokenStream {
         let SeqType { name, of_type } = seq_type;
         let slice_name = format_ident!("{}Slice", name);
+        let type_traits = idx_types(Some(quote!(type_traits)));
 
         quote!(
             #[derive(Debug)]
             #[repr(transparent)] // Because of this we can soundly cast `&{mut }IdxSlice<T>` to `&{mut }[T]`.
             pub struct #slice_name([#of_type]);
+
+            impl #type_traits::SeqType for #slice_name {
+                type Of = #of_type;
+            }
+
             impl<'a> From<&'a [#of_type]> for &'a #slice_name
             {
                 fn from(v: &'a [#of_type]) -> &'a #slice_name {
@@ -57,6 +64,7 @@ pub mod codegen {
                     unsafe { &mut *(v as *mut [#of_type] as *mut #slice_name) }
                 }
             }
+
             impl core::ops::Index<usize> for #slice_name
             {
                 type Output = #of_type;
@@ -91,11 +99,15 @@ pub mod codegen {
 
     fn emit_vector(seq_type: &SeqType) -> TokenStream {
         let SeqType { name, of_type } = seq_type;
+        let type_traits = idx_types(Some(quote!(type_traits)));
         let vec_name = name;
         let slice_name = format_ident!("{}Slice", name);
         quote!(
             #[derive(Debug)]
             pub struct #vec_name(pub Vec<#of_type>);
+            impl #type_traits::SeqType for #vec_name {
+                type Of = #of_type;
+            }
             impl From<Vec<#of_type>> for #vec_name {
                 fn from(v: Vec<#of_type>) -> #vec_name {
                     #vec_name(v)

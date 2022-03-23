@@ -82,4 +82,13 @@ pub mod type_traits {
         }
     }
     gen_signed!(i8, i16, i32, i64, isize);
+
+    // Trait type for getting information about a sequence type
+    pub trait SeqType {
+        type Of; // The underlying type the sequence is a sequence of
+    }
+
+    impl<T> SeqType for Vec<T> {
+        type Of = T;
+    }
 }

@@ -36,15 +36,16 @@ pub mod codegen {
 
         let code = quote_spanned! {*span=>
             use #type_traits::IndexType;
+            use #type_traits::SeqType;
+
             impl core::ops::Index<#index> for #seq
             {
-                type Output = u32;// FIXME FIXME FIXME !!! #of;
+                type Output = <#seq as SeqType>::Of;
                 #[inline]
                 fn index(&self, i: #index) -> &Self::Output {
                     &self[i.index(self.len())]
                 }
             }
-
 
             impl core::ops::IndexMut<#index> for #seq
             {
