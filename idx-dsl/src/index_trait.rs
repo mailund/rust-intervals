@@ -29,7 +29,6 @@ pub mod codegen {
     use quote::{format_ident, quote, quote_spanned};
     use syn::Result;
 
-    #[allow(dead_code)]
     pub fn emit_index_trait(itrait: &IndexTrait) -> Result<TokenStream> {
         let IndexTrait { span, index, seq } = itrait;
         let slice_name = format_ident!("{}Slice", seq);
@@ -46,11 +45,12 @@ pub mod codegen {
                 }
             }
 
+
             impl core::ops::IndexMut<#index> for #seq
             {
                 #[inline]
                 fn index_mut(&mut self, i: #index) -> &mut Self::Output {
-                    &mut self[i.index(self.len())]
+                    self.index_mut(i.index(self.len()))
                 }
             }
 
@@ -65,11 +65,12 @@ pub mod codegen {
             impl core::ops::IndexMut<core::ops::Range<#index>> for #seq
             {
                 fn index_mut(&mut self, r: core::ops::Range<#index>) -> &mut Self::Output {
-                    self.0[r.start.index(self.len())..r.end.index(self.len())].into()
+                    let from: usize = r.start.index(self.len());
+                    let to: usize = r.end.index(self.len());
+                    self.index_mut(from..to)
                 }
             }
         };
-        println!("{}", code);
         Ok(code)
     }
 }

@@ -14,7 +14,7 @@ type XIdx = u32;
 #[idx_type(offset = Offset, base_ops)]
 type SaIdx = i32;
 
-//def_index!(SaIdx for SA);
+def_index!(SaIdx for SA);
 
 #[test]
 fn it_works() {
